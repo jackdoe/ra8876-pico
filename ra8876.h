@@ -49,7 +49,7 @@ uint8_t ra8876_get_chip_id(void);
 
 void ra8876_write_cmd(uint8_t cmd);
 void ra8876_write_data(uint8_t data);
-void ra8876_write_data_dma(const uint8_t *data, size_t len);
+void ra8876_write_data_burst(const uint8_t *data, size_t len);
 uint8_t ra8876_read_data(void);
 uint8_t ra8876_read_status(void);
 void ra8876_write_reg(uint8_t reg, uint8_t val);

@@ -4,14 +4,13 @@
 #include <string.h>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
-#include "hardware/dma.h"
 
 #define PIN_MISO    16
 #define PIN_CS      17
 #define PIN_SCK     18
 #define PIN_MOSI    19
 #define SPI_PORT    spi0
-#define SPI_SPEED   30000000
+#define SPI_SPEED   20000000
 
 typedef struct {
     uint16_t char_width;
@@ -43,59 +42,72 @@ static uint8_t g_draw_page = 0;
 static uint8_t g_display_page = 0;
 static uint8_t g_num_pages = 1;
 
-static int g_dma_tx_chan = -1;
-static dma_channel_config g_dma_tx_config;
 static uint8_t g_reg03 = 0x00;
 static uint8_t g_reg10 = 0x04;
 static uint8_t g_reg3C = 0x00;
 static uint8_t g_regCD = 0x00;
 
+static inline void cs_select(void) {
+    asm volatile("nop \n nop \n nop");
+    gpio_put(PIN_CS, 0);
+    asm volatile("nop \n nop \n nop");
+}
+
+static inline void cs_deselect(void) {
+    asm volatile("nop \n nop \n nop");
+    gpio_put(PIN_CS, 1);
+    asm volatile("nop \n nop \n nop");
+}
+
+uint8_t ra8876_read_status(void) {
+    uint8_t cmd = 0x40;
+    uint8_t status = 0;
+    cs_select();
+    spi_write_blocking(SPI_PORT, &cmd, 1);
+    spi_read_blocking(SPI_PORT, 0, &status, 1);
+    cs_deselect();
+    return status;
+}
+
 void ra8876_write_cmd(uint8_t cmd) {
     uint8_t buf[2] = {0x00, cmd};
+    cs_select();
     spi_write_blocking(SPI_PORT, buf, 2);
+    cs_deselect();
 }
 
 void ra8876_write_data(uint8_t data) {
+    while (ra8876_read_status() & 0x80);
     uint8_t buf[2] = {0x80, data};
+    cs_select();
     spi_write_blocking(SPI_PORT, buf, 2);
+    cs_deselect();
 }
 
-static uint8_t g_dma_buf[4096];
+static uint8_t g_burst_buf[65];
 
-void ra8876_write_data_dma(const uint8_t *data, size_t len) {
-    while (len > 0) {
-        size_t chunk = (len > sizeof(g_dma_buf) - 1) ? sizeof(g_dma_buf) - 1 : len;
-        g_dma_buf[0] = 0x80;
-        memcpy(&g_dma_buf[1], data, chunk);
-
-        dma_channel_configure(
-            g_dma_tx_chan,
-            &g_dma_tx_config,
-            &spi_get_hw(SPI_PORT)->dr,
-            g_dma_buf,
-            chunk + 1,
-            true
-        );
-
-        dma_channel_wait_for_finish_blocking(g_dma_tx_chan);
-        while (spi_is_busy(SPI_PORT));
-
-        data += chunk;
-        len -= chunk;
+void ra8876_write_data_burst(const uint8_t *data, size_t len) {
+    g_burst_buf[0] = 0x80;
+    size_t offset = 0;
+    while (offset < len) {
+        while ((ra8876_read_status() & 0x40) == 0)
+            tight_loop_contents();
+        size_t chunk = len - offset;
+        if (chunk > 64) chunk = 64;
+        memcpy(&g_burst_buf[1], &data[offset], chunk);
+        cs_select();
+        spi_write_blocking(SPI_PORT, g_burst_buf, chunk + 1);
+        cs_deselect();
+        offset += chunk;
     }
 }
 
 uint8_t ra8876_read_data(void) {
     uint8_t tx[2] = {0xC0, 0x00};
     uint8_t rx[2];
+    cs_select();
     spi_write_read_blocking(SPI_PORT, tx, rx, 2);
-    return rx[1];
-}
-
-uint8_t ra8876_read_status(void) {
-    uint8_t tx[2] = {0x40, 0x00};
-    uint8_t rx[2];
-    spi_write_read_blocking(SPI_PORT, tx, rx, 2);
+    cs_deselect();
     return rx[1];
 }
 
@@ -122,7 +134,7 @@ static void write_reg32(uint8_t reg, uint32_t val) {
 }
 
 void ra8876_wait_ready(void) {
-    while (ra8876_read_status() & 0x02);
+    while ((ra8876_read_status() & 0x04) == 0);
 }
 
 void ra8876_wait_write_fifo(void) {
@@ -194,9 +206,9 @@ static bool init_sdram(void) {
     ra8876_write_reg(0xE1, 0x03);
     ra8876_write_reg16(0xE2, 1875);
     ra8876_write_reg(0xE4, 0x01);
-    for (int i = 0; i < 250; i++) {
+    for (int i = 0; i < 1000; i++) {
         sleep_ms(1);
-        if (ra8876_read_status() & 0x40) return true;
+        if (ra8876_read_status() & 0x04) return true;
     }
     return false;
 }
@@ -250,12 +262,9 @@ bool ra8876_init(void) {
     gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
     gpio_set_function(PIN_SCK, GPIO_FUNC_SPI);
     gpio_set_function(PIN_MOSI, GPIO_FUNC_SPI);
-    gpio_set_function(PIN_CS, GPIO_FUNC_SPI);
-
-    g_dma_tx_chan = dma_claim_unused_channel(true);
-    g_dma_tx_config = dma_channel_get_default_config(g_dma_tx_chan);
-    channel_config_set_transfer_data_size(&g_dma_tx_config, DMA_SIZE_8);
-    channel_config_set_dreq(&g_dma_tx_config, spi_get_dreq(SPI_PORT, true));
+    gpio_init(PIN_CS);
+    gpio_set_dir(PIN_CS, GPIO_OUT);
+    gpio_put(PIN_CS, 1);
 
     sleep_ms(100);
 
@@ -555,6 +564,7 @@ static void bte_start(uint8_t rop, uint8_t op) {
 void ra8876_bte_copy(uint8_t src_page, uint16_t src_x, uint16_t src_y,
                      uint8_t dst_page, uint16_t dst_x, uint16_t dst_y,
                      uint16_t width, uint16_t height, uint8_t rop) {
+    ra8876_wait_task_busy();
     bte_set_source0(src_page * RA8876_PAGE_SIZE, RA8876_WIDTH, src_x, src_y);
     bte_set_dest(dst_page * RA8876_PAGE_SIZE, RA8876_WIDTH, dst_x, dst_y);
     bte_set_size(width, height);
@@ -564,6 +574,7 @@ void ra8876_bte_copy(uint8_t src_page, uint16_t src_x, uint16_t src_y,
 void ra8876_bte_copy_chroma(uint8_t src_page, uint16_t src_x, uint16_t src_y,
                             uint8_t dst_page, uint16_t dst_x, uint16_t dst_y,
                             uint16_t width, uint16_t height, uint16_t chroma) {
+    ra8876_wait_task_busy();
     ra8876_write_reg(0xD5, (chroma >> 11) << 3);
     ra8876_write_reg(0xD6, ((chroma >> 5) & 0x3F) << 2);
     ra8876_write_reg(0xD7, (chroma & 0x1F) << 3);
@@ -577,6 +588,7 @@ void ra8876_bte_blend(uint8_t s0_page, uint16_t s0_x, uint16_t s0_y,
                       uint8_t s1_page, uint16_t s1_x, uint16_t s1_y,
                       uint8_t dst_page, uint16_t dst_x, uint16_t dst_y,
                       uint16_t width, uint16_t height, uint8_t alpha) {
+    ra8876_wait_task_busy();
     bte_set_source0(s0_page * RA8876_PAGE_SIZE, RA8876_WIDTH, s0_x, s0_y);
     bte_set_source1(s1_page * RA8876_PAGE_SIZE, RA8876_WIDTH, s1_x, s1_y);
     bte_set_dest(dst_page * RA8876_PAGE_SIZE, RA8876_WIDTH, dst_x, dst_y);
@@ -587,6 +599,7 @@ void ra8876_bte_blend(uint8_t s0_page, uint16_t s0_x, uint16_t s0_y,
 
 void ra8876_bte_solid_fill(uint8_t page, uint16_t x, uint16_t y,
                            uint16_t width, uint16_t height, uint16_t color) {
+    ra8876_wait_task_busy();
     set_draw_color(color);
     bte_set_dest(page * RA8876_PAGE_SIZE, RA8876_WIDTH, x, y);
     bte_set_size(width, height);
@@ -612,6 +625,7 @@ void ra8876_bte_batch_fill(uint16_t x, uint16_t y, uint16_t color) {
 void ra8876_bte_write(uint8_t page, uint16_t x, uint16_t y,
                       uint16_t width, uint16_t height,
                       const uint16_t *data) {
+    ra8876_wait_task_busy();
     bte_set_dest(page * RA8876_PAGE_SIZE, RA8876_WIDTH, x, y);
     bte_set_size(width, height);
     ra8876_write_reg(0x92, 0x25);
@@ -620,7 +634,7 @@ void ra8876_bte_write(uint8_t page, uint16_t x, uint16_t y,
     ra8876_write_cmd(0x04);
 
     while (ra8876_read_status() & 0x80);
-    ra8876_write_data_dma((const uint8_t *)data, width * height * 2);
+    ra8876_write_data_burst((const uint8_t *)data, width * height * 2);
 
     while (ra8876_read_reg(0x90) & 0x10);
 }
@@ -628,6 +642,7 @@ void ra8876_bte_write(uint8_t page, uint16_t x, uint16_t y,
 void ra8876_bte_expand(uint8_t page, uint16_t x, uint16_t y,
                        uint16_t width, uint16_t height,
                        const uint8_t *bitmap, uint16_t fg, uint16_t bg) {
+    ra8876_wait_task_busy();
     set_draw_color(fg);
     ra8876_set_bg_color(bg);
     bte_set_dest(page * RA8876_PAGE_SIZE, RA8876_WIDTH, x, y);
@@ -639,7 +654,7 @@ void ra8876_bte_expand(uint8_t page, uint16_t x, uint16_t y,
 
     size_t row_bytes = (width + 7) / 8;
     while (ra8876_read_status() & 0x80);
-    ra8876_write_data_dma(bitmap, row_bytes * height);
+    ra8876_write_data_burst(bitmap, row_bytes * height);
 
     while (ra8876_read_reg(0x90) & 0x10);
 }
@@ -664,6 +679,7 @@ void ra8876_cursor_blink_rate(uint8_t frames) {
 }
 
 void ra8876_invert_area(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    ra8876_wait_task_busy();
     uint32_t addr = g_canvas_addr;
     bte_set_source0(addr, RA8876_WIDTH, x, y);
     bte_set_dest(addr, RA8876_WIDTH, x, y);
@@ -748,7 +764,7 @@ void ra8876_cgram_upload_font(const uint8_t *data, uint8_t first_char, uint8_t n
     ra8876_write_cmd(0x04);
 
     while (ra8876_read_status() & 0x80);
-    ra8876_write_data_dma(data, total);
+    ra8876_write_data_burst(data, total);
 
     ra8876_wait_write_fifo_empty();
     ra8876_wait_task_busy();
