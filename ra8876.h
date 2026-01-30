@@ -30,6 +30,11 @@
 #define RA8876_ENC_8859_4   0x02
 #define RA8876_ENC_8859_5   0x03
 
+#define RA8876_ROTATE_0     0
+#define RA8876_ROTATE_90    1
+#define RA8876_ROTATE_180   2
+#define RA8876_ROTATE_270   3
+
 #define RA8876_PAGE_SIZE    (RA8876_WIDTH * RA8876_HEIGHT * 2)
 #define RA8876_SDRAM_SIZE   (16 * 1024 * 1024)
 #define RA8876_MAX_PAGES    13
@@ -46,6 +51,11 @@
 
 bool ra8876_init(void);
 uint8_t ra8876_get_chip_id(void);
+
+void ra8876_set_rotation(uint8_t rotation);
+uint8_t ra8876_get_rotation(void);
+uint16_t ra8876_get_width(void);
+uint16_t ra8876_get_height(void);
 
 void ra8876_write_cmd(uint8_t cmd);
 void ra8876_write_data(uint8_t data);

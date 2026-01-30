@@ -47,6 +47,9 @@ static uint8_t g_reg10 = 0x04;
 static uint8_t g_reg3C = 0x00;
 static uint8_t g_regCD = 0x00;
 
+static uint8_t g_rotation = RA8876_ROTATE_0;
+static uint8_t g_dpcr_base = 0x80;
+
 static inline void cs_select(void) {
     asm volatile("nop \n nop \n nop");
     gpio_put(PIN_CS, 0);
@@ -149,6 +152,59 @@ void ra8876_wait_task_busy(void) {
     while (ra8876_read_status() & 0x08);
 }
 
+uint16_t ra8876_get_width(void) {
+    return (g_rotation & 1) ? RA8876_HEIGHT : RA8876_WIDTH;
+}
+
+uint16_t ra8876_get_height(void) {
+    return (g_rotation & 1) ? RA8876_WIDTH : RA8876_HEIGHT;
+}
+
+uint8_t ra8876_get_rotation(void) {
+    return g_rotation;
+}
+
+static void transform_coords(uint16_t *x, uint16_t *y) {
+    uint16_t tx = *x, ty = *y;
+    switch (g_rotation) {
+        case RA8876_ROTATE_90:
+            *x = ty;
+            *y = RA8876_HEIGHT - 1 - tx;
+            break;
+        case RA8876_ROTATE_270:
+            *x = RA8876_WIDTH - 1 - ty;
+            *y = tx;
+            break;
+    }
+}
+
+void ra8876_set_rotation(uint8_t rotation) {
+    g_rotation = rotation & 0x03;
+
+    uint8_t macr = 0;
+    uint8_t dpcr = g_dpcr_base;
+
+    switch (g_rotation) {
+        case RA8876_ROTATE_0:
+            macr = 0x00;
+            break;
+        case RA8876_ROTATE_90:
+            macr = 0x06;
+            break;
+        case RA8876_ROTATE_180:
+            macr = 0x02;
+            dpcr |= 0x08;
+            break;
+        case RA8876_ROTATE_270:
+            macr = 0x04;
+            dpcr |= 0x08;
+            break;
+    }
+
+    ra8876_write_reg(0x02, macr);
+    ra8876_write_reg(0x12, dpcr);
+}
+
 static void set_draw_color(uint16_t color) {
     ra8876_write_reg(0xD2, (color >> 11) << 3);
     ra8876_write_reg(0xD3, ((color >> 5) & 0x3F) << 2);
@@ -218,7 +274,8 @@ static void init_display(void) {
     ra8876_write_reg(0x01, ccr);
     ra8876_write_reg(0x02, 0x00);
     ra8876_write_reg(0x03, 0x00);
-    ra8876_write_reg(0x12, 0x80);
+    g_dpcr_base = 0x80;
+    ra8876_write_reg(0x12, g_dpcr_base);
     ra8876_write_reg(0x13, 0xC0);
 
     ra8876_write_reg(0x14, (RA8876_WIDTH / 8) - 1);
@@ -244,7 +301,8 @@ static void init_display(void) {
     ra8876_write_reg16(0x5C, RA8876_HEIGHT);
     ra8876_write_reg(0x5E, 0x01);
 
-    ra8876_write_reg(0x12, ra8876_read_reg(0x12) | 0x40);
+    g_dpcr_base |= 0x40;
+    ra8876_write_reg(0x12, g_dpcr_base);
 }
 
 void ra8876_set_backlight(uint8_t brightness) {
@@ -293,24 +351,40 @@ bool ra8876_init(void) {
 }
 
 void ra8876_fill_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
-    set_two_points(x, y, x + w - 1, y + h - 1);
+    if (g_rotation & 1) { uint16_t t = w; w = h; h = t; }
+    uint16_t x1 = x + w - 1, y1 = y + h - 1;
+    transform_coords(&x, &y);
+    transform_coords(&x1, &y1);
+    if (x > x1) { uint16_t t = x; x = x1; x1 = t; }
+    if (y > y1) { uint16_t t = y; y = y1; y1 = t; }
+    set_two_points(x, y, x1, y1);
     set_draw_color(color);
     draw_and_wait(0x76, 0xE0);
 }
 
 void ra8876_draw_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
-    set_two_points(x, y, x + w - 1, y + h - 1);
+    if (g_rotation & 1) { uint16_t t = w; w = h; h = t; }
+    uint16_t x1 = x + w - 1, y1 = y + h - 1;
+    transform_coords(&x, &y);
+    transform_coords(&x1, &y1);
+    if (x > x1) { uint16_t t = x; x = x1; x1 = t; }
+    if (y > y1) { uint16_t t = y; y = y1; y1 = t; }
+    set_two_points(x, y, x1, y1);
     set_draw_color(color);
     draw_and_wait(0x76, 0xA0);
 }
 
 void ra8876_draw_line(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color) {
+    transform_coords(&x0, &y0);
+    transform_coords(&x1, &y1);
     set_two_points(x0, y0, x1, y1);
     set_draw_color(color);
     draw_and_wait(0x67, 0x80);
 }
 
 static void draw_ellipse(uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint16_t color, uint8_t cmd) {
+    transform_coords(&x, &y);
+    if (g_rotation & 1) { uint16_t t = rx; rx = ry; ry = t; }
     ra8876_write_reg16(0x7B, x);
     ra8876_write_reg16(0x7D, y);
     ra8876_write_reg16(0x77, rx);
@@ -336,7 +410,13 @@ void ra8876_draw_ellipse(uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint1
 }
 
 void ra8876_fill_rounded_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t r, uint16_t color) {
-    set_two_points(x, y, x + w - 1, y + h - 1);
+    if (g_rotation & 1) { uint16_t t = w; w = h; h = t; }
+    uint16_t x1 = x + w - 1, y1 = y + h - 1;
+    transform_coords(&x, &y);
+    transform_coords(&x1, &y1);
+    if (x > x1) { uint16_t t = x; x = x1; x1 = t; }
+    if (y > y1) { uint16_t t = y; y = y1; y1 = t; }
+    set_two_points(x, y, x1, y1);
     ra8876_write_reg16(0x77, r);
     ra8876_write_reg16(0x79, r);
     set_draw_color(color);
@@ -344,7 +424,13 @@ void ra8876_fill_rounded_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, ui
 }
 
 void ra8876_draw_rounded_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t r, uint16_t color) {
-    set_two_points(x, y, x + w - 1, y + h - 1);
+    if (g_rotation & 1) { uint16_t t = w; w = h; h = t; }
+    uint16_t x1 = x + w - 1, y1 = y + h - 1;
+    transform_coords(&x, &y);
+    transform_coords(&x1, &y1);
+    if (x > x1) { uint16_t t = x; x = x1; x1 = t; }
+    if (y > y1) { uint16_t t = y; y = y1; y1 = t; }
+    set_two_points(x, y, x1, y1);
     ra8876_write_reg16(0x77, r);
     ra8876_write_reg16(0x79, r);
     set_draw_color(color);
@@ -352,12 +438,18 @@ void ra8876_draw_rounded_rect(uint16_t x, uint16_t y, uint16_t w, uint16_t h, ui
 }
 
 void ra8876_fill_triangle(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
+    transform_coords(&x0, &y0);
+    transform_coords(&x1, &y1);
+    transform_coords(&x2, &y2);
     set_three_points(x0, y0, x1, y1, x2, y2);
     set_draw_color(color);
     draw_and_wait(0x67, 0xE2);
 }
 
 void ra8876_draw_triangle(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
+    transform_coords(&x0, &y0);
+    transform_coords(&x1, &y1);
+    transform_coords(&x2, &y2);
     set_three_points(x0, y0, x1, y1, x2, y2);
     set_draw_color(color);
     draw_and_wait(0x67, 0xA2);
@@ -428,6 +520,7 @@ void ra8876_set_text_transparent(bool transparent) {
 void ra8876_set_text_cursor(uint16_t x, uint16_t y) {
     g_text.cursor_x = x;
     g_text.cursor_y = y;
+    transform_coords(&x, &y);
     ra8876_write_reg16(0x63, x);
     ra8876_write_reg16(0x65, y);
 }
@@ -599,10 +692,16 @@ void ra8876_bte_blend(uint8_t s0_page, uint16_t s0_x, uint16_t s0_y,
 
 void ra8876_bte_solid_fill(uint8_t page, uint16_t x, uint16_t y,
                            uint16_t width, uint16_t height, uint16_t color) {
+    if (g_rotation & 1) { uint16_t t = width; width = height; height = t; }
+    uint16_t x1 = x + width - 1, y1 = y + height - 1;
+    transform_coords(&x, &y);
+    transform_coords(&x1, &y1);
+    if (x > x1) { uint16_t t = x; x = x1; x1 = t; }
+    if (y > y1) { uint16_t t = y; y = y1; y1 = t; }
     ra8876_wait_task_busy();
     set_draw_color(color);
     bte_set_dest(page * RA8876_PAGE_SIZE, RA8876_WIDTH, x, y);
-    bte_set_size(width, height);
+    bte_set_size(x1 - x + 1, y1 - y + 1);
     bte_start(RA8876_ROP_S, 0x0C);
 }
 
@@ -615,6 +714,7 @@ void ra8876_bte_batch_start(uint8_t page, uint16_t width, uint16_t height) {
 }
 
 void ra8876_bte_batch_fill(uint16_t x, uint16_t y, uint16_t color) {
+    transform_coords(&x, &y);
     ra8876_write_reg16(0xAD, x);
     ra8876_write_reg16(0xAF, y);
     set_draw_color(color);
@@ -625,6 +725,7 @@ void ra8876_bte_batch_fill(uint16_t x, uint16_t y, uint16_t color) {
 void ra8876_bte_write(uint8_t page, uint16_t x, uint16_t y,
                       uint16_t width, uint16_t height,
                       const uint16_t *data) {
+    transform_coords(&x, &y);
     ra8876_wait_task_busy();
     bte_set_dest(page * RA8876_PAGE_SIZE, RA8876_WIDTH, x, y);
     bte_set_size(width, height);
@@ -642,6 +743,7 @@ void ra8876_bte_write(uint8_t page, uint16_t x, uint16_t y,
 void ra8876_bte_expand(uint8_t page, uint16_t x, uint16_t y,
                        uint16_t width, uint16_t height,
                        const uint8_t *bitmap, uint16_t fg, uint16_t bg) {
+    transform_coords(&x, &y);
     ra8876_wait_task_busy();
     set_draw_color(fg);
     ra8876_set_bg_color(bg);
@@ -679,11 +781,17 @@ void ra8876_cursor_blink_rate(uint8_t frames) {
 }
 
 void ra8876_invert_area(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    if (g_rotation & 1) { uint16_t t = w; w = h; h = t; }
+    uint16_t x1 = x + w - 1, y1 = y + h - 1;
+    transform_coords(&x, &y);
+    transform_coords(&x1, &y1);
+    if (x > x1) { uint16_t t = x; x = x1; x1 = t; }
+    if (y > y1) { uint16_t t = y; y = y1; y1 = t; }
     ra8876_wait_task_busy();
     uint32_t addr = g_canvas_addr;
     bte_set_source0(addr, RA8876_WIDTH, x, y);
     bte_set_dest(addr, RA8876_WIDTH, x, y);
-    bte_set_size(w, h);
+    bte_set_size(x1 - x + 1, y1 - y + 1);
     bte_start(RA8876_ROP_NOT_S, 0x02);
 }
 
