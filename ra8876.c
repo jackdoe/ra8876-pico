@@ -44,9 +44,9 @@ void ra8876_write_data(ra8876_t *dev, uint8_t data) {
 }
 
 void ra8876_write_data_burst(ra8876_t *dev, const uint8_t *data, size_t len) {
-    const size_t CHUNK_SIZE = 16; 
+    const size_t CHUNK_SIZE = 16;
     size_t offset = 0;
-    uint8_t cmd_header = 0x80; 
+    uint8_t cmd_header = 0x80;
     while (offset < len) {
         while ((ra8876_read_status(dev) & 0x40) == 0)
             tight_loop_contents();
@@ -777,3 +777,52 @@ void ra8876_put_cgram_string(ra8876_t *dev, const char *str) {
     ra8876_set_graphics_mode(dev);
 }
 
+void ra8876_cgram_upload_inv_font(ra8876_t *dev, const uint8_t *data,
+                                  uint16_t offset_index, uint8_t first_char,
+                                  uint8_t num_chars, uint8_t font_height) {
+    uint32_t bytes_per_char;
+    switch (font_height) {
+        case 24: bytes_per_char = 48; break;
+        case 32: bytes_per_char = 64; break;
+        default: bytes_per_char = 16; break;
+    }
+
+    uint32_t start_char_idx = offset_index * 256 + first_char;
+    uint32_t addr = CGRAM_ADDR + start_char_idx * bytes_per_char;
+    uint32_t total_bytes = num_chars * bytes_per_char;
+
+    ra8876_wait_task_busy(dev);
+    
+    ra8876_write_reg(dev, 0x5E, 0x04);
+    write_reg32(dev, 0x5F, addr);
+    ra8876_write_cmd(dev, 0x04);
+
+    while (ra8876_read_status(dev) & 0x80);
+
+    const size_t CHUNK_SIZE = 16;
+    size_t offset = 0;
+    
+    while (offset < total_bytes) {
+        while ((ra8876_read_status(dev) & 0x40) == 0); // Wait for FIFO
+
+        size_t chunk = total_bytes - offset;
+        if (chunk > CHUNK_SIZE) chunk = CHUNK_SIZE;
+
+        cs_select(dev);
+        uint8_t cmd = 0x80;
+        spi_write_blocking(dev->spi, &cmd, 1);
+        
+        for(size_t i=0; i<chunk; i++) {
+            uint8_t val = ~data[offset + i];
+            spi_write_blocking(dev->spi, &val, 1);
+        }
+        
+        cs_deselect(dev);
+        offset += chunk;
+    }
+
+    ra8876_wait_write_fifo_empty(dev);
+    ra8876_wait_task_busy(dev);
+    ra8876_write_reg(dev, 0x5E, 0x01);
+    ra8876_write_cmd(dev, 0xFF);
+}

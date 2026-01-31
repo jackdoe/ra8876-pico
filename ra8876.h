@@ -180,6 +180,10 @@ void ra8876_set_bg_color(ra8876_t *dev, uint16_t color);
 void ra8876_set_text_mode(ra8876_t *dev);
 void ra8876_set_graphics_mode(ra8876_t *dev);
 
+void ra8876_cgram_upload_inv_font(ra8876_t *dev, const uint8_t *data,
+                                  uint16_t offset_index, uint8_t first_char,
+                                  uint8_t num_chars, uint8_t font_height);
+
 static inline uint16_t ra8876_rgb565(uint8_t r, uint8_t g, uint8_t b) {
     return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3);
 }
