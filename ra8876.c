@@ -44,7 +44,7 @@ void ra8876_write_data(ra8876_t *dev, uint8_t data) {
 }
 
 void ra8876_write_data_burst(ra8876_t *dev, const uint8_t *data, size_t len) {
-    const size_t CHUNK_SIZE = 128; 
+    const size_t CHUNK_SIZE = 16; 
     size_t offset = 0;
     uint8_t cmd_header = 0x80; 
     while (offset < len) {
