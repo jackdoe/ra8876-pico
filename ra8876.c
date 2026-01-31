@@ -44,17 +44,21 @@ void ra8876_write_data(ra8876_t *dev, uint8_t data) {
 }
 
 void ra8876_write_data_burst(ra8876_t *dev, const uint8_t *data, size_t len) {
-    dev->burst_buf[0] = 0x80;
+    const size_t CHUNK_SIZE = 128; 
     size_t offset = 0;
+    uint8_t cmd_header = 0x80; 
     while (offset < len) {
         while ((ra8876_read_status(dev) & 0x40) == 0)
             tight_loop_contents();
+
         size_t chunk = len - offset;
-        if (chunk > 64) chunk = 64;
-        memcpy(&dev->burst_buf[1], &data[offset], chunk);
+        if (chunk > CHUNK_SIZE) chunk = CHUNK_SIZE;
+
         cs_select(dev);
-        spi_write_blocking(dev->spi, dev->burst_buf, chunk + 1);
+        spi_write_blocking(dev->spi, &cmd_header, 1);
+        spi_write_blocking(dev->spi, &data[offset], chunk);
         cs_deselect(dev);
+
         offset += chunk;
     }
 }
@@ -772,3 +776,4 @@ void ra8876_put_cgram_string(ra8876_t *dev, const char *str) {
     }
     ra8876_set_graphics_mode(dev);
 }
+
