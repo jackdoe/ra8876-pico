@@ -109,23 +109,6 @@ void ra8876_draw_rounded_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w,
 void ra8876_fill_triangle(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void ra8876_draw_triangle(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 void ra8876_fill_screen(ra8876_t *dev, uint16_t color);
-void ra8876_invert_area(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
-
-void ra8876_page_fill_rect(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
-void ra8876_page_draw_rect(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color);
-void ra8876_page_draw_line(ra8876_t *dev, uint8_t page, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color);
-void ra8876_page_fill_circle(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t radius, uint16_t color);
-void ra8876_page_draw_circle(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t radius, uint16_t color);
-void ra8876_page_fill_ellipse(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint16_t color);
-void ra8876_page_draw_ellipse(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint16_t color);
-void ra8876_page_fill_rounded_rect(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t r, uint16_t color);
-void ra8876_page_draw_rounded_rect(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t r, uint16_t color);
-void ra8876_page_fill_triangle(ra8876_t *dev, uint8_t page, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
-void ra8876_page_draw_triangle(ra8876_t *dev, uint8_t page, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
-void ra8876_page_fill_screen(ra8876_t *dev, uint8_t page, uint16_t color);
-void ra8876_page_invert_area(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
-void ra8876_page_print(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t color, const char *str);
-void ra8876_page_printf(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y, uint16_t color, const char *fmt, ...);
 
 void ra8876_select_internal_font(ra8876_t *dev, uint8_t size, uint8_t encoding);
 void ra8876_set_text_colors(ra8876_t *dev, uint16_t fg, uint16_t bg);
@@ -177,6 +160,8 @@ void ra8876_cursor_show(ra8876_t *dev, bool blink);
 void ra8876_cursor_hide(ra8876_t *dev);
 void ra8876_cursor_size(ra8876_t *dev, uint8_t width, uint8_t height);
 void ra8876_cursor_blink_rate(ra8876_t *dev, uint8_t frames);
+
+void ra8876_invert_area(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 
 void ra8876_pip1_enable(ra8876_t *dev, uint8_t src_page, uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 void ra8876_pip1_move(ra8876_t *dev, uint16_t x, uint16_t y);
