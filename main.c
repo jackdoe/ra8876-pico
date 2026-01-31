@@ -102,8 +102,9 @@ void demo2_bounce(void) {
 
     for (int i = 0; i < 500; i++) {
         uint32_t frame_start = time_us_32();
+        uint8_t page = ra8876_get_draw_page(&display);
 
-        ra8876_fill_screen(&display, bg_color);
+        ra8876_page_fill_screen(&display, page, bg_color);
 
         x += dx;
         y += dy;
@@ -127,9 +128,8 @@ void demo2_bounce(void) {
         }
         uint16_t color = ra8876_rgb565(r, g, b);
 
-        ra8876_fill_rect(&display, x, y, w, h, color);
-
-        ra8876_printf(&display, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
+        ra8876_page_fill_rect(&display, page, x, y, w, h, color);
+        ra8876_page_printf(&display, page, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
 
         ra8876_swap_buffers(&display);
 
@@ -246,16 +246,14 @@ void demo4_bte(void) {
 
     ra8876_buffer_init(&display, 2);
 
-    ra8876_set_canvas_page(&display, 2);
-    ra8876_fill_screen(&display, RA8876_MAGENTA);
-    ra8876_fill_rect(&display, 10, 10, 81, 81, RA8876_RED);
-    ra8876_fill_rect(&display, 30, 30, 41, 41, RA8876_YELLOW);
-    ra8876_fill_circle(&display, 50, 50, 20, RA8876_BLUE);
+    ra8876_page_fill_screen(&display, 2, RA8876_MAGENTA);
+    ra8876_page_fill_rect(&display, 2, 10, 10, 81, 81, RA8876_RED);
+    ra8876_page_fill_rect(&display, 2, 30, 30, 41, 41, RA8876_YELLOW);
+    ra8876_page_fill_circle(&display, 2, 50, 50, 20, RA8876_BLUE);
 
-    ra8876_set_canvas_page(&display, 3);
-    ra8876_fill_screen(&display, RA8876_BLACK);
+    ra8876_page_fill_screen(&display, 3, RA8876_BLACK);
     for (int i = 0; i < 10; i++) {
-        ra8876_fill_rect(&display, i * 100, 0, 51, 600, ra8876_rgb565(i * 25, 50, 100));
+        ra8876_page_fill_rect(&display, 3, i * 100, 0, 51, 600, ra8876_rgb565(i * 25, 50, 100));
     }
 
     int sprite_x = 100, sprite_y = 100;
@@ -266,17 +264,15 @@ void demo4_bte(void) {
 
     for (int i = 0; i < 500; i++) {
         uint32_t frame_start = time_us_32();
-        uint8_t draw_page = ra8876_get_draw_page(&display);
+        uint8_t page = ra8876_get_draw_page(&display);
 
-        ra8876_bte_copy(&display, 3, 0, 0, draw_page, 0, 0, RA8876_WIDTH, RA8876_HEIGHT, RA8876_ROP_S);
+        ra8876_bte_copy(&display, 3, 0, 0, page, 0, 0, RA8876_WIDTH, RA8876_HEIGHT, RA8876_ROP_S);
+        ra8876_bte_copy_chroma(&display, 2, 0, 0, page, sprite_x, sprite_y, 100, 100, RA8876_MAGENTA);
+        ra8876_bte_copy_chroma(&display, 2, 0, 0, page, sprite_x + 150, sprite_y, 100, 100, RA8876_MAGENTA);
+        ra8876_bte_copy_chroma(&display, 2, 0, 0, page, sprite_x + 300, sprite_y, 100, 100, RA8876_MAGENTA);
 
-        ra8876_bte_copy_chroma(&display, 2, 0, 0, draw_page, sprite_x, sprite_y, 100, 100, RA8876_MAGENTA);
-
-        ra8876_bte_copy_chroma(&display, 2, 0, 0, draw_page, sprite_x + 150, sprite_y, 100, 100, RA8876_MAGENTA);
-        ra8876_bte_copy_chroma(&display, 2, 0, 0, draw_page, sprite_x + 300, sprite_y, 100, 100, RA8876_MAGENTA);
-
-        ra8876_printf(&display, 10, 10, RA8876_WHITE, "BTE Demo - FPS: %lu", fps);
-        ra8876_printf(&display, 10, 30, RA8876_CYAN, "Sprites with chroma key transparency");
+        ra8876_page_printf(&display, page, 10, 10, RA8876_WHITE, "BTE Demo - FPS: %lu", fps);
+        ra8876_page_printf(&display, page, 10, 30, RA8876_CYAN, "Sprites with chroma key transparency");
 
         ra8876_swap_buffers(&display);
 
@@ -358,37 +354,32 @@ void demo5_cursor(void) {
 void demo6_pip(void) {
     printf("Demo 6: PIP Hardware HUD\n");
 
-    ra8876_set_canvas_page(&display, 0);
-    ra8876_fill_screen(&display, ra8876_rgb565(0, 0, 80));
+    ra8876_page_fill_screen(&display, 0, ra8876_rgb565(0, 0, 80));
     for (int i = 0; i < 20; i++) {
-        ra8876_draw_line(&display, 0, i * 30, RA8876_WIDTH, i * 30, RA8876_DARKGRAY);
-        ra8876_draw_line(&display, i * 60, 0, i * 60, RA8876_HEIGHT, RA8876_DARKGRAY);
+        ra8876_page_draw_line(&display, 0, 0, i * 30, RA8876_WIDTH, i * 30, RA8876_DARKGRAY);
+        ra8876_page_draw_line(&display, 0, i * 60, 0, i * 60, RA8876_HEIGHT, RA8876_DARKGRAY);
     }
-    ra8876_print(&display, 300, 280, RA8876_WHITE, "Main Display - Background Grid");
-    ra8876_print(&display, 250, 320, RA8876_GRAY, "PIP windows float above without redrawing this");
+    ra8876_page_print(&display, 0, 300, 280, RA8876_WHITE, "Main Display - Background Grid");
+    ra8876_page_print(&display, 0, 250, 320, RA8876_GRAY, "PIP windows float above without redrawing this");
 
-    ra8876_set_canvas_page(&display, 2);
-    ra8876_fill_rect(&display, 0, 0, 200, 100, ra8876_rgb565(40, 0, 0));
-    ra8876_draw_rect(&display, 0, 0, 200, 100, RA8876_RED);
-    ra8876_print(&display, 10, 10, RA8876_WHITE, "HUD Window 1");
-    ra8876_print(&display, 10, 35, RA8876_YELLOW, "HP: 100/100");
-    ra8876_print(&display, 10, 55, RA8876_CYAN, "MP: 50/50");
-    ra8876_print(&display, 10, 75, RA8876_GREEN, "Gold: 1234");
+    ra8876_page_fill_rect(&display, 2, 0, 0, 200, 100, ra8876_rgb565(40, 0, 0));
+    ra8876_page_draw_rect(&display, 2, 0, 0, 200, 100, RA8876_RED);
+    ra8876_page_print(&display, 2, 10, 10, RA8876_WHITE, "HUD Window 1");
+    ra8876_page_print(&display, 2, 10, 35, RA8876_YELLOW, "HP: 100/100");
+    ra8876_page_print(&display, 2, 10, 55, RA8876_CYAN, "MP: 50/50");
+    ra8876_page_print(&display, 2, 10, 75, RA8876_GREEN, "Gold: 1234");
 
-    ra8876_set_canvas_page(&display, 3);
-    ra8876_fill_rect(&display, 0, 0, 152, 62, ra8876_rgb565(0, 40, 0));
-    ra8876_draw_rect(&display, 0, 0, 152, 62, RA8876_GREEN);
-    ra8876_print(&display, 10, 10, RA8876_WHITE, "Minimap");
-    ra8876_fill_circle(&display, 75, 35, 5, RA8876_RED);
-    ra8876_fill_rect(&display, 50, 25, 11, 11, RA8876_BLUE);
-    ra8876_fill_rect(&display, 100, 40, 21, 11, RA8876_YELLOW);
-
-    ra8876_set_canvas_page(&display, 0);
+    ra8876_page_fill_rect(&display, 3, 0, 0, 152, 62, ra8876_rgb565(0, 40, 0));
+    ra8876_page_draw_rect(&display, 3, 0, 0, 152, 62, RA8876_GREEN);
+    ra8876_page_print(&display, 3, 10, 10, RA8876_WHITE, "Minimap");
+    ra8876_page_fill_circle(&display, 3, 75, 35, 5, RA8876_RED);
+    ra8876_page_fill_rect(&display, 3, 50, 25, 11, 11, RA8876_BLUE);
+    ra8876_page_fill_rect(&display, 3, 100, 40, 21, 11, RA8876_YELLOW);
 
     ra8876_pip1_enable(&display, 2, 20, 20, 200, 100);
     ra8876_pip2_enable(&display, 3, RA8876_WIDTH - 170, 20, 152, 62);
 
-    ra8876_print(&display, 300, 550, RA8876_WHITE, "PIP windows move with ZERO background redraw!");
+    ra8876_page_print(&display, 0, 300, 550, RA8876_WHITE, "PIP windows move with ZERO background redraw!");
 
     int pip1_x = 20, pip1_y = 20;
     int pip1_dx = 3, pip1_dy = 2;
@@ -565,7 +556,9 @@ void demo7_cgram(void) {
     uint32_t last_fps_time = start_time;
 
     for (int f = 0; f < 300; f++) {
-        ra8876_fill_screen(&display, RA8876_BLACK);
+        uint8_t page = ra8876_get_draw_page(&display);
+        ra8876_page_fill_screen(&display, page, RA8876_BLACK);
+        ra8876_set_canvas_page(&display, page);
         ra8876_set_text_colors(&display, RA8876_GREEN, RA8876_BLACK);
 
         for (int row = 0; row < rows; row++) {
@@ -580,7 +573,7 @@ void demo7_cgram(void) {
 
         ra8876_set_text_colors(&display, RA8876_WHITE, RA8876_BLACK);
         ra8876_select_internal_font(&display, RA8876_FONT_16, RA8876_ENC_8859_1);
-        ra8876_printf(&display, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
+        ra8876_page_printf(&display, page, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
         ra8876_select_cgram_font(&display, RA8876_FONT_16);
 
         ra8876_swap_buffers(&display);
@@ -637,7 +630,8 @@ void demo8_internal_font_bench(void) {
     ra8876_select_internal_font(&display, RA8876_FONT_16, RA8876_ENC_8859_1);
 
     for (int f = 0; f < 300; f++) {
-        uint8_t draw_page = ra8876_get_draw_page(&display);
+        uint8_t page = ra8876_get_draw_page(&display);
+        ra8876_set_canvas_page(&display, page);
         ra8876_set_text_colors(&display, RA8876_GREEN, RA8876_BLACK);
 
         for (int row = 0; row < rows; row++) {
@@ -650,7 +644,7 @@ void demo8_internal_font_bench(void) {
             ra8876_put_string(&display, line);
         }
 
-        ra8876_printf(&display, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
+        ra8876_page_printf(&display, page, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
 
         ra8876_swap_buffers(&display);
         frames++;
@@ -912,15 +906,14 @@ void demo11_game_of_life(void) {
     uint32_t last_fps_time = time_us_32();
 
     for (int i = 0; i < 1000; i++) {
-        uint8_t draw_page = ra8876_get_draw_page(&display);
+        uint8_t page = ra8876_get_draw_page(&display);
 
-        ra8876_bte_solid_fill(&display, draw_page, 0, 0, RA8876_WIDTH, 40, ra8876_rgb565(0, 0, 60));
+        ra8876_bte_solid_fill(&display, page, 0, 0, RA8876_WIDTH, 40, ra8876_rgb565(0, 0, 60));
 
-        life_draw(draw_page);
+        life_draw(page);
 
-        ra8876_set_canvas_page(&display, draw_page);
         ra8876_select_internal_font(&display, RA8876_FONT_16, RA8876_ENC_8859_1);
-        ra8876_printf(&display, 10, 10, RA8876_WHITE, "Game of Life  Gen: %lu  FPS: %lu  Grid: %dx%d", gen, fps, LIFE_COLS, LIFE_ROWS);
+        ra8876_page_printf(&display, page, 10, 10, RA8876_WHITE, "Game of Life  Gen: %lu  FPS: %lu  Grid: %dx%d", gen, fps, LIFE_COLS, LIFE_ROWS);
 
         ra8876_swap_buffers(&display);
 
@@ -1146,15 +1139,14 @@ void demo12_platformer(void) {
     uint32_t last_fps_time = time_us_32();
 
     for (int i = 0; i < 3000; i++) {
-        uint8_t draw_page = ra8876_get_draw_page(&display);
+        uint8_t page = ra8876_get_draw_page(&display);
 
         plat_update();
-        plat_draw(draw_page);
+        plat_draw(page);
 
-        ra8876_set_canvas_page(&display, draw_page);
         ra8876_select_internal_font(&display, RA8876_FONT_16, RA8876_ENC_8859_1);
-        ra8876_printf(&display, 10, 10, RA8876_WHITE, "SCORE: %lu", player.score);
-        ra8876_printf(&display, 900, 10, RA8876_WHITE, "FPS: %lu", fps);
+        ra8876_page_printf(&display, page, 10, 10, RA8876_WHITE, "SCORE: %lu", player.score);
+        ra8876_page_printf(&display, page, 900, 10, RA8876_WHITE, "FPS: %lu", fps);
 
         ra8876_wait_task_busy(&display);
         ra8876_swap_buffers(&display);
@@ -1192,37 +1184,32 @@ void demo13_blend_write_pip(void) {
         }
     }
 
-    ra8876_set_canvas_page(&display, 2);
-    ra8876_fill_screen(&display, ra8876_rgb565(20, 20, 60));
+    ra8876_page_fill_screen(&display, 2, ra8876_rgb565(20, 20, 60));
     for (int i = 0; i < 12; i++) {
         uint16_t color = ra8876_rgb565(100 + i * 10, 50, 150 - i * 10);
-        ra8876_fill_circle(&display, 100 + i * 80, 300, 60 - i * 3, color);
+        ra8876_page_fill_circle(&display, 2, 100 + i * 80, 300, 60 - i * 3, color);
     }
-    ra8876_print(&display, 350, 50, RA8876_WHITE, "Layer A: Circles");
+    ra8876_page_print(&display, 2, 350, 50, RA8876_WHITE, "Layer A: Circles");
 
-    ra8876_set_canvas_page(&display, 3);
-    ra8876_fill_screen(&display, ra8876_rgb565(60, 20, 20));
+    ra8876_page_fill_screen(&display, 3, ra8876_rgb565(60, 20, 20));
     for (int i = 0; i < 8; i++) {
         uint16_t color = ra8876_rgb565(200, 100 + i * 15, 50);
-        ra8876_fill_rect(&display, 50 + i * 120, 100, 51, 401, color);
+        ra8876_page_fill_rect(&display, 3, 50 + i * 120, 100, 51, 401, color);
     }
-    ra8876_print(&display, 350, 50, RA8876_WHITE, "Layer B: Bars");
+    ra8876_page_print(&display, 3, 350, 50, RA8876_WHITE, "Layer B: Bars");
 
-    ra8876_set_canvas_page(&display, 4);
-    ra8876_fill_screen(&display, RA8876_BLACK);
+    ra8876_page_fill_screen(&display, 4, RA8876_BLACK);
     ra8876_bte_write(&display, 4, 0, 0, 128, 128, pixels);
-    ra8876_draw_rect(&display, 0, 0, 128, 128, RA8876_WHITE);
+    ra8876_page_draw_rect(&display, 4, 0, 0, 128, 128, RA8876_WHITE);
 
-    ra8876_set_canvas_page(&display, 5);
-    ra8876_fill_rect(&display, 0, 0, 140, 60, ra8876_rgb565(0, 60, 0));
-    ra8876_draw_rect(&display, 0, 0, 140, 60, RA8876_GREEN);
-    ra8876_print(&display, 10, 10, RA8876_WHITE, "PIP2 Overlay");
-    ra8876_print(&display, 10, 35, RA8876_CYAN, "Alpha Blend");
+    ra8876_page_fill_rect(&display, 5, 0, 0, 140, 60, ra8876_rgb565(0, 60, 0));
+    ra8876_page_draw_rect(&display, 5, 0, 0, 140, 60, RA8876_GREEN);
+    ra8876_page_print(&display, 5, 10, 10, RA8876_WHITE, "PIP2 Overlay");
+    ra8876_page_print(&display, 5, 10, 35, RA8876_CYAN, "Alpha Blend");
 
     free(pixels);
 
-    ra8876_set_canvas_page(&display, 0);
-    ra8876_fill_screen(&display, RA8876_BLACK);
+    ra8876_page_fill_screen(&display, 0, RA8876_BLACK);
 
     ra8876_pip1_enable(&display, 4, 100, 200, 128, 128);
     ra8876_pip2_enable(&display, 5, 800, 50, 140, 60);
@@ -1241,9 +1228,8 @@ void demo13_blend_write_pip(void) {
     for (int i = 0; i < 600; i++) {
         ra8876_bte_blend(&display, 2, 0, 0, 3, 0, 0, 0, 0, 0, RA8876_WIDTH, RA8876_HEIGHT, alpha);
 
-        ra8876_set_canvas_page(&display, 0);
-        ra8876_printf(&display, 10, 10, RA8876_WHITE, "Alpha: %3d/255  FPS: %lu", alpha, fps);
-        ra8876_print(&display, 10, 570, RA8876_GRAY, "bte_write: texture in PIP1 | bte_blend: layer mixing | pip1+pip2: dual floating windows");
+        ra8876_page_printf(&display, 0, 10, 10, RA8876_WHITE, "Alpha: %3d/255  FPS: %lu", alpha, fps);
+        ra8876_page_print(&display, 0, 10, 570, RA8876_GRAY, "bte_write: texture in PIP1 | bte_blend: layer mixing | pip1+pip2: dual floating windows");
 
         pip1_x += pip1_dx;
         pip1_y += pip1_dy;
