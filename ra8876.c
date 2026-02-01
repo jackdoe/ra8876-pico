@@ -110,10 +110,11 @@ void ra8876_wait_task_busy(ra8876_t *dev) {
     while (ra8876_read_status(dev) & 0x08);
 }
 
-static void set_draw_color(ra8876_t *dev, uint16_t color) {
-    ra8876_write_reg(dev, 0xD2, (color >> 11) << 3);
-    ra8876_write_reg(dev, 0xD3, ((color >> 5) & 0x3F) << 2);
-    ra8876_write_reg(dev, 0xD4, (color & 0x1F) << 3);
+static void set_draw_color(ra8876_t *dev, uint8_t color) {
+    // RGB332 to RGB888 expansion for foreground color registers
+    ra8876_write_reg(dev, 0xD2, (color & 0xE0));           // R: bits 7-5 -> expand
+    ra8876_write_reg(dev, 0xD3, (color & 0x1C) << 3);      // G: bits 4-2 -> expand
+    ra8876_write_reg(dev, 0xD4, (color & 0x03) << 6);      // B: bits 1-0 -> expand
 }
 
 static void set_two_points(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
@@ -194,7 +195,8 @@ static void init_display(ra8876_t *dev) {
     ra8876_write_reg(dev, 0x1E, 11);
     ra8876_write_reg(dev, 0x1F, 9);
 
-    ra8876_write_reg(dev, 0x10, 0x04);
+    ra8876_write_reg(dev, 0x10, 0x00);  // 8bpp mode for main image
+    ra8876_write_reg(dev, 0x11, 0x00);  // 8bpp mode for PIP1 and PIP2
     write_reg32(dev, 0x20, 0);
     ra8876_write_reg16(dev, 0x24, RA8876_WIDTH);
     write_reg32(dev, 0x26, 0);
@@ -203,7 +205,7 @@ static void init_display(ra8876_t *dev) {
     write_reg32(dev, 0x56, 0);
     ra8876_write_reg16(dev, 0x5A, RA8876_WIDTH);
     ra8876_write_reg16(dev, 0x5C, RA8876_HEIGHT);
-    ra8876_write_reg(dev, 0x5E, 0x01);
+    ra8876_write_reg(dev, 0x5E, 0x00);  // 8bpp block mode
 
     ra8876_write_reg(dev, 0x12, ra8876_read_reg(dev, 0x12) | 0x40);
 }
@@ -235,7 +237,7 @@ bool ra8876_init(ra8876_t *dev) {
     dev->display_page = 0;
     dev->num_pages = 1;
     dev->reg03 = 0x00;
-    dev->reg10 = 0x04;
+    dev->reg10 = 0x00;  // 8bpp mode
     dev->reg3C = 0x00;
     dev->regCD = 0x00;
 
@@ -274,25 +276,25 @@ bool ra8876_init(ra8876_t *dev) {
     return true;
 }
 
-void ra8876_fill_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
+void ra8876_fill_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color) {
     set_two_points(dev, x, y, x + w - 1, y + h - 1);
     set_draw_color(dev, color);
     draw_and_wait(dev, 0x76, 0xE0);
 }
 
-void ra8876_draw_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t color) {
+void ra8876_draw_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint8_t color) {
     set_two_points(dev, x, y, x + w - 1, y + h - 1);
     set_draw_color(dev, color);
     draw_and_wait(dev, 0x76, 0xA0);
 }
 
-void ra8876_draw_line(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t color) {
+void ra8876_draw_line(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint8_t color) {
     set_two_points(dev, x0, y0, x1, y1);
     set_draw_color(dev, color);
     draw_and_wait(dev, 0x67, 0x80);
 }
 
-static void draw_ellipse(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint16_t color, uint8_t cmd) {
+static void draw_ellipse(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint8_t color, uint8_t cmd) {
     ra8876_write_reg16(dev, 0x7B, x);
     ra8876_write_reg16(dev, 0x7D, y);
     ra8876_write_reg16(dev, 0x77, rx);
@@ -301,23 +303,23 @@ static void draw_ellipse(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t rx, uin
     draw_and_wait(dev, 0x76, cmd);
 }
 
-void ra8876_fill_circle(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t r, uint16_t color) {
+void ra8876_fill_circle(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t r, uint8_t color) {
     draw_ellipse(dev, x, y, r, r, color, 0xC0);
 }
 
-void ra8876_draw_circle(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t r, uint16_t color) {
+void ra8876_draw_circle(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t r, uint8_t color) {
     draw_ellipse(dev, x, y, r, r, color, 0x80);
 }
 
-void ra8876_fill_ellipse(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint16_t color) {
+void ra8876_fill_ellipse(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint8_t color) {
     draw_ellipse(dev, x, y, rx, ry, color, 0xC0);
 }
 
-void ra8876_draw_ellipse(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint16_t color) {
+void ra8876_draw_ellipse(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t rx, uint16_t ry, uint8_t color) {
     draw_ellipse(dev, x, y, rx, ry, color, 0x80);
 }
 
-void ra8876_fill_rounded_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t r, uint16_t color) {
+void ra8876_fill_rounded_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t r, uint8_t color) {
     set_two_points(dev, x, y, x + w - 1, y + h - 1);
     ra8876_write_reg16(dev, 0x77, r);
     ra8876_write_reg16(dev, 0x79, r);
@@ -325,7 +327,7 @@ void ra8876_fill_rounded_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w,
     draw_and_wait(dev, 0x76, 0xF0);
 }
 
-void ra8876_draw_rounded_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t r, uint16_t color) {
+void ra8876_draw_rounded_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w, uint16_t h, uint16_t r, uint8_t color) {
     set_two_points(dev, x, y, x + w - 1, y + h - 1);
     ra8876_write_reg16(dev, 0x77, r);
     ra8876_write_reg16(dev, 0x79, r);
@@ -333,19 +335,19 @@ void ra8876_draw_rounded_rect(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t w,
     draw_and_wait(dev, 0x76, 0xB0);
 }
 
-void ra8876_fill_triangle(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
+void ra8876_fill_triangle(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint8_t color) {
     set_three_points(dev, x0, y0, x1, y1, x2, y2);
     set_draw_color(dev, color);
     draw_and_wait(dev, 0x67, 0xE2);
 }
 
-void ra8876_draw_triangle(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
+void ra8876_draw_triangle(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint8_t color) {
     set_three_points(dev, x0, y0, x1, y1, x2, y2);
     set_draw_color(dev, color);
     draw_and_wait(dev, 0x67, 0xA2);
 }
 
-void ra8876_fill_screen(ra8876_t *dev, uint16_t color) {
+void ra8876_fill_screen(ra8876_t *dev, uint8_t color) {
     ra8876_fill_rect(dev, 0, 0, RA8876_WIDTH, RA8876_HEIGHT, color);
 }
 
@@ -380,19 +382,20 @@ void ra8876_select_internal_font(ra8876_t *dev, uint8_t size, uint8_t encoding) 
     ra8876_write_reg(dev, 0xCD, dev->regCD);
 }
 
-void ra8876_set_fg_color(ra8876_t *dev, uint16_t color) {
+void ra8876_set_fg_color(ra8876_t *dev, uint8_t color) {
     dev->fg_color = color;
     set_draw_color(dev, color);
 }
 
-void ra8876_set_bg_color(ra8876_t *dev, uint16_t color) {
+void ra8876_set_bg_color(ra8876_t *dev, uint8_t color) {
     dev->bg_color = color;
-    ra8876_write_reg(dev, 0xD5, (color >> 11) << 3);
-    ra8876_write_reg(dev, 0xD6, ((color >> 5) & 0x3F) << 2);
-    ra8876_write_reg(dev, 0xD7, (color & 0x1F) << 3);
+    // RGB332 to RGB888 expansion for background color registers
+    ra8876_write_reg(dev, 0xD5, (color & 0xE0));           // R: bits 7-5
+    ra8876_write_reg(dev, 0xD6, (color & 0x1C) << 3);      // G: bits 4-2
+    ra8876_write_reg(dev, 0xD7, (color & 0x03) << 6);      // B: bits 1-0
 }
 
-void ra8876_set_text_colors(ra8876_t *dev, uint16_t fg, uint16_t bg) {
+void ra8876_set_text_colors(ra8876_t *dev, uint8_t fg, uint8_t bg) {
     ra8876_set_fg_color(dev, fg);
     ra8876_set_bg_color(dev, bg);
 }
@@ -424,13 +427,13 @@ void ra8876_put_string(ra8876_t *dev, const char *s) {
     ra8876_set_graphics_mode(dev);
 }
 
-void ra8876_print(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t color, const char *s) {
+void ra8876_print(ra8876_t *dev, uint16_t x, uint16_t y, uint8_t color, const char *s) {
     ra8876_set_fg_color(dev, color);
     ra8876_set_text_cursor(dev, x, y);
     ra8876_put_string(dev, s);
 }
 
-void ra8876_printf(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t color, const char *fmt, ...) {
+void ra8876_printf(ra8876_t *dev, uint16_t x, uint16_t y, uint8_t color, const char *fmt, ...) {
     char buf[256];
     va_list args;
     va_start(args, fmt);
@@ -537,7 +540,7 @@ static void bte_set_size(ra8876_t *dev, uint16_t width, uint16_t height) {
 }
 
 static void bte_start(ra8876_t *dev, uint8_t rop, uint8_t op) {
-    ra8876_write_reg(dev, 0x92, 0x25);
+    ra8876_write_reg(dev, 0x92, 0x00);  // 8bpp for S0, S1, and Dest
     ra8876_write_reg(dev, 0x91, (rop & 0xF0) | (op & 0x0F));
     ra8876_write_reg(dev, 0x90, 0x10);
     while (ra8876_read_reg(dev, 0x90) & 0x10);
@@ -555,11 +558,12 @@ void ra8876_bte_copy(ra8876_t *dev, uint8_t src_page, uint16_t src_x, uint16_t s
 
 void ra8876_bte_copy_chroma(ra8876_t *dev, uint8_t src_page, uint16_t src_x, uint16_t src_y,
                             uint8_t dst_page, uint16_t dst_x, uint16_t dst_y,
-                            uint16_t width, uint16_t height, uint16_t chroma) {
+                            uint16_t width, uint16_t height, uint8_t chroma) {
     ra8876_wait_task_busy(dev);
-    ra8876_write_reg(dev, 0xD5, (chroma >> 11) << 3);
-    ra8876_write_reg(dev, 0xD6, ((chroma >> 5) & 0x3F) << 2);
-    ra8876_write_reg(dev, 0xD7, (chroma & 0x1F) << 3);
+    // RGB332 chroma key in background color registers
+    ra8876_write_reg(dev, 0xD5, (chroma & 0xE0));
+    ra8876_write_reg(dev, 0xD6, (chroma & 0x1C) << 3);
+    ra8876_write_reg(dev, 0xD7, (chroma & 0x03) << 6);
     bte_set_source0(dev, src_page * RA8876_PAGE_SIZE, RA8876_WIDTH, src_x, src_y);
     bte_set_dest(dev, dst_page * RA8876_PAGE_SIZE, RA8876_WIDTH, dst_x, dst_y);
     bte_set_size(dev, width, height);
@@ -580,7 +584,7 @@ void ra8876_bte_blend(ra8876_t *dev, uint8_t s0_page, uint16_t s0_x, uint16_t s0
 }
 
 void ra8876_bte_solid_fill(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y,
-                           uint16_t width, uint16_t height, uint16_t color) {
+                           uint16_t width, uint16_t height, uint8_t color) {
     ra8876_wait_task_busy(dev);
     set_draw_color(dev, color);
     bte_set_dest(dev, page * RA8876_PAGE_SIZE, RA8876_WIDTH, x, y);
@@ -592,11 +596,11 @@ void ra8876_bte_batch_start(ra8876_t *dev, uint8_t page, uint16_t width, uint16_
     write_reg32(dev, 0xA7, page * RA8876_PAGE_SIZE);
     ra8876_write_reg16(dev, 0xAB, RA8876_WIDTH);
     bte_set_size(dev, width, height);
-    ra8876_write_reg(dev, 0x92, 0x25);
+    ra8876_write_reg(dev, 0x92, 0x00);  // 8bpp for S0, S1, and Dest
     ra8876_write_reg(dev, 0x91, (RA8876_ROP_S & 0xF0) | 0x0C);
 }
 
-void ra8876_bte_batch_fill(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t color) {
+void ra8876_bte_batch_fill(ra8876_t *dev, uint16_t x, uint16_t y, uint8_t color) {
     ra8876_write_reg16(dev, 0xAD, x);
     ra8876_write_reg16(dev, 0xAF, y);
     set_draw_color(dev, color);
@@ -606,30 +610,30 @@ void ra8876_bte_batch_fill(ra8876_t *dev, uint16_t x, uint16_t y, uint16_t color
 
 void ra8876_bte_write(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y,
                       uint16_t width, uint16_t height,
-                      const uint16_t *data) {
+                      const uint8_t *data) {
     ra8876_wait_task_busy(dev);
     bte_set_dest(dev, page * RA8876_PAGE_SIZE, RA8876_WIDTH, x, y);
     bte_set_size(dev, width, height);
-    ra8876_write_reg(dev, 0x92, 0x25);
+    ra8876_write_reg(dev, 0x92, 0x00);  // 8bpp for S0, S1, and Dest
     ra8876_write_reg(dev, 0x91, (RA8876_ROP_S & 0xF0) | 0x00);
     ra8876_write_reg(dev, 0x90, 0x10);
     ra8876_write_cmd(dev, 0x04);
 
     while (ra8876_read_status(dev) & 0x80);
-    ra8876_write_data_burst(dev, (const uint8_t *)data, width * height * 2);
+    ra8876_write_data_burst(dev, data, width * height);  // 1 byte per pixel
 
     while (ra8876_read_reg(dev, 0x90) & 0x10);
 }
 
 void ra8876_bte_expand(ra8876_t *dev, uint8_t page, uint16_t x, uint16_t y,
                        uint16_t width, uint16_t height,
-                       const uint8_t *bitmap, uint16_t fg, uint16_t bg) {
+                       const uint8_t *bitmap, uint8_t fg, uint8_t bg) {
     ra8876_wait_task_busy(dev);
     set_draw_color(dev, fg);
     ra8876_set_bg_color(dev, bg);
     bte_set_dest(dev, page * RA8876_PAGE_SIZE, RA8876_WIDTH, x, y);
     bte_set_size(dev, width, height);
-    ra8876_write_reg(dev, 0x92, 0x25);
+    ra8876_write_reg(dev, 0x92, 0x00);  // 8bpp for dest
     ra8876_write_reg(dev, 0x91, (RA8876_ROP_S & 0xF0) | 0x08);
     ra8876_write_reg(dev, 0x90, 0x10);
     ra8876_write_cmd(dev, 0x04);
@@ -748,7 +752,7 @@ void ra8876_cgram_upload_font(ra8876_t *dev, const uint8_t *data, uint8_t first_
 
     ra8876_wait_write_fifo_empty(dev);
     ra8876_wait_task_busy(dev);
-    ra8876_write_reg(dev, 0x5E, 0x01);
+    ra8876_write_reg(dev, 0x5E, 0x00);  // restore 8bpp block mode
     ra8876_write_cmd(dev, 0xFF);
 }
 
@@ -803,7 +807,7 @@ void ra8876_cgram_upload_inv_font(ra8876_t *dev, const uint8_t *data,
     size_t offset = 0;
     
     while (offset < total_bytes) {
-        while ((ra8876_read_status(dev) & 0x40) == 0); // Wait for FIFO
+        while ((ra8876_read_status(dev) & 0x40) == 0);
 
         size_t chunk = total_bytes - offset;
         if (chunk > CHUNK_SIZE) chunk = CHUNK_SIZE;
@@ -823,6 +827,6 @@ void ra8876_cgram_upload_inv_font(ra8876_t *dev, const uint8_t *data,
 
     ra8876_wait_write_fifo_empty(dev);
     ra8876_wait_task_busy(dev);
-    ra8876_write_reg(dev, 0x5E, 0x01);
+    ra8876_write_reg(dev, 0x5E, 0x00);  // restore 8bpp block mode
     ra8876_write_cmd(dev, 0xFF);
 }
