@@ -36,7 +36,6 @@ void ra8876_write_cmd(ra8876_t *dev, uint8_t cmd) {
 }
 
 void ra8876_write_data(ra8876_t *dev, uint8_t data) {
-    while (ra8876_read_status(dev) & 0x80);
     uint8_t buf[2] = {0x80, data};
     cs_select(dev);
     spi_write_blocking(dev->spi, buf, 2);
@@ -112,9 +111,9 @@ void ra8876_wait_task_busy(ra8876_t *dev) {
 
 static void set_draw_color(ra8876_t *dev, uint8_t color) {
     // RGB332 to RGB888 expansion for foreground color registers
-    ra8876_write_reg(dev, 0xD2, (color & 0xE0));           // R: bits 7-5 -> expand
-    ra8876_write_reg(dev, 0xD3, (color & 0x1C) << 3);      // G: bits 4-2 -> expand
-    ra8876_write_reg(dev, 0xD4, (color & 0x03) << 6);      // B: bits 1-0 -> expand
+    ra8876_write_reg(dev, 0xD2, (color & 0xE0));
+    ra8876_write_reg(dev, 0xD3, (color & 0x1C) << 3);
+    ra8876_write_reg(dev, 0xD4, (color & 0x03) << 6);
 }
 
 static void set_two_points(ra8876_t *dev, uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y1) {
@@ -390,9 +389,9 @@ void ra8876_set_fg_color(ra8876_t *dev, uint8_t color) {
 void ra8876_set_bg_color(ra8876_t *dev, uint8_t color) {
     dev->bg_color = color;
     // RGB332 to RGB888 expansion for background color registers
-    ra8876_write_reg(dev, 0xD5, (color & 0xE0));           // R: bits 7-5
-    ra8876_write_reg(dev, 0xD6, (color & 0x1C) << 3);      // G: bits 4-2
-    ra8876_write_reg(dev, 0xD7, (color & 0x03) << 6);      // B: bits 1-0
+    ra8876_write_reg(dev, 0xD5, (color & 0xE0));
+    ra8876_write_reg(dev, 0xD6, (color & 0x1C) << 3);
+    ra8876_write_reg(dev, 0xD7, (color & 0x03) << 6);
 }
 
 void ra8876_set_text_colors(ra8876_t *dev, uint8_t fg, uint8_t bg) {
@@ -420,9 +419,9 @@ void ra8876_set_text_cursor(ra8876_t *dev, uint16_t x, uint16_t y) {
 void ra8876_put_string(ra8876_t *dev, const char *s) {
     ra8876_set_text_mode(dev);
     ra8876_write_cmd(dev, 0x04);
-    while (*s) {
-        ra8876_wait_write_fifo(dev);
-        ra8876_write_data(dev, *s++);
+    size_t len = strlen(s);
+    if (len > 0) {
+        ra8876_write_data_burst(dev, (const uint8_t *)s, len);
     }
     ra8876_set_graphics_mode(dev);
 }
@@ -772,11 +771,16 @@ void ra8876_select_cgram_font(ra8876_t *dev, uint8_t size) {
 void ra8876_put_cgram_string(ra8876_t *dev, const char *str) {
     ra8876_set_text_mode(dev);
     ra8876_write_cmd(dev, 0x04);
+
+    // CGRAM needs 2 bytes per char (0x00 + ASCII), pack into buffer
+    uint8_t buf[32];  // 16 chars at a time
     while (*str) {
-        ra8876_wait_write_fifo(dev);
-        ra8876_write_data(dev, 0x00);
-        ra8876_wait_write_fifo(dev);
-        ra8876_write_data(dev, *str++);
+        size_t count = 0;
+        while (*str && count < 32) {
+            buf[count++] = 0x00;
+            buf[count++] = *str++;
+        }
+        ra8876_write_data_burst(dev, buf, count);
     }
     ra8876_set_graphics_mode(dev);
 }
