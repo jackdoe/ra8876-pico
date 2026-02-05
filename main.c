@@ -56,11 +56,11 @@ void demo1_shapes(void) {
 
     ra8876_print(&display, 10, 480, RA8876_GRAY, "Lines:");
     for (int i = 0; i < 10; i++) {
-        uint8_t color = ra8876_rgb332(255 - i*25, i*25, 128);
+        uint32_t color = ra8876_rgb(255 - i*25, i*25, 128);
         ra8876_draw_line(&display, 100 + i*30, 510, 100 + i*30 + 100, 580, color);
     }
 
-    ra8876_print(&display, 500, 480, RA8876_GRAY, "BTE Expand (1bpp->16bpp):");
+    ra8876_print(&display, 500, 480, RA8876_GRAY, "BTE Expand (1bpp->Nbpp):");
     static const uint8_t icon_32x32[128] = {
         0x00,0x00,0x00,0x00, 0x00,0x7F,0xFE,0x00, 0x01,0xFF,0xFF,0x80, 0x03,0xFF,0xFF,0xC0,
         0x07,0xFF,0xFF,0xE0, 0x0F,0xC0,0x03,0xF0, 0x1F,0x00,0x00,0xF8, 0x1E,0x00,0x00,0x78,
@@ -71,15 +71,57 @@ void demo1_shapes(void) {
         0x1E,0x00,0x00,0x78, 0x1F,0x00,0x00,0xF8, 0x0F,0xC0,0x03,0xF0, 0x07,0xFF,0xFF,0xE0,
         0x03,0xFF,0xFF,0xC0, 0x01,0xFF,0xFF,0x80, 0x00,0x7F,0xFE,0x00, 0x00,0x00,0x00,0x00,
     };
-    ra8876_bte_expand(&display, 0, 500, 510, 32, 32, icon_32x32, RA8876_CYAN, RA8876_BLACK);
-    ra8876_bte_expand(&display, 0, 540, 510, 32, 32, icon_32x32, RA8876_RED, RA8876_BLACK);
-    ra8876_bte_expand(&display, 0, 580, 510, 32, 32, icon_32x32, RA8876_GREEN, RA8876_DARKGRAY);
-    ra8876_bte_expand(&display, 0, 620, 510, 32, 32, icon_32x32, RA8876_YELLOW, RA8876_BLUE);
+    ra8876_bte_expand(&display, ra8876_page_addr(&display, 0), 500, 510, 32, 32, icon_32x32, RA8876_CYAN, RA8876_BLACK);
+    ra8876_bte_expand(&display, ra8876_page_addr(&display, 0), 540, 510, 32, 32, icon_32x32, RA8876_RED, RA8876_BLACK);
+    ra8876_bte_expand(&display, ra8876_page_addr(&display, 0), 580, 510, 32, 32, icon_32x32, RA8876_GREEN, RA8876_DARKGRAY);
+    ra8876_bte_expand(&display, ra8876_page_addr(&display, 0), 620, 510, 32, 32, icon_32x32, RA8876_YELLOW, RA8876_BLUE);
 
-    ra8876_printf(&display, 700, 550, RA8876_WHITE, "%dx%d @ %dbpp",
-        RA8876_WIDTH, RA8876_HEIGHT, RA8876_BPP);
+    ra8876_printf(&display, 700, 550, RA8876_WHITE, "%dx%d",
+        display.width, display.height);
 
     sleep_ms(5000);
+}
+
+void demo2_power(void) {
+    printf("Demo 2: Power Management\n");
+
+    ra8876_fill_screen(&display, ra8876_rgb(0, 0, 40));
+    ra8876_print(&display, 300, 30, RA8876_WHITE, "Power Management Demo");
+
+    ra8876_print(&display, 50, 80, RA8876_GREEN, "Brightness ramp down...");
+    for (int b = 255; b >= 0; b -= 5) {
+        ra8876_set_backlight(&display, b);
+        sleep_ms(20);
+    }
+    ra8876_set_backlight(&display, 0);
+    sleep_ms(500);
+
+    ra8876_print(&display, 50, 110, RA8876_GREEN, "Brightness ramp up...");
+    for (int b = 0; b <= 255; b += 5) {
+        ra8876_set_backlight(&display, b);
+        sleep_ms(20);
+    }
+    ra8876_set_backlight(&display, 255);
+    sleep_ms(1000);
+
+    ra8876_print(&display, 50, 160, RA8876_YELLOW, "Display OFF (chip still running)...");
+    sleep_ms(1000);
+    ra8876_display_off(&display);
+    sleep_ms(2000);
+    ra8876_display_on(&display);
+    ra8876_print(&display, 550, 160, RA8876_CYAN, "ON");
+    sleep_ms(1000);
+
+    ra8876_print(&display, 50, 210, RA8876_YELLOW, "Standby (SDRAM active, fastest wake)...");
+    sleep_ms(1000);
+    ra8876_standby(&display);
+    sleep_ms(2000);
+    ra8876_wake_standby(&display);
+    ra8876_print(&display, 600, 210, RA8876_CYAN, "Awake");
+    sleep_ms(1000);
+
+    ra8876_print(&display, 50, 300, RA8876_WHITE, "Power demo complete");
+    sleep_ms(2000);
 }
 
 void demo2_bounce(void) {
@@ -98,7 +140,7 @@ void demo2_bounce(void) {
     uint32_t last_fps_time = time_us_32();
     uint32_t fps = 0;
 
-    uint8_t bg_color = ra8876_rgb332(0, 0, 64);
+    uint32_t bg_color = ra8876_rgb(0, 0, 64);
 
     for (int i = 0; i < 500; i++) {
         uint32_t frame_start = time_us_32();
@@ -108,11 +150,11 @@ void demo2_bounce(void) {
         x += dx;
         y += dy;
 
-        if (x <= 0 || x + w >= RA8876_WIDTH) {
+        if (x <= 0 || x + w >= (int)display.width) {
             dx = -dx;
             x += dx;
         }
-        if (y <= 0 || y + h >= RA8876_HEIGHT - 30) {
+        if (y <= 0 || y + h >= (int)display.height - 30) {
             dy = -dy;
             y += dy;
         }
@@ -125,11 +167,11 @@ void demo2_bounce(void) {
             case 4: r += 5; if (r >= 255) { r = 255; color_state = 5; } break;
             case 5: b -= 5; if (b <= 0) { b = 0; color_state = 0; } break;
         }
-        uint8_t color = ra8876_rgb332(r, g, b);
+        uint32_t color = ra8876_rgb(r, g, b);
 
         ra8876_fill_rect(&display, x, y, w, h, color);
 
-        ra8876_printf(&display, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
+        ra8876_printf(&display, 10, display.height - 20, RA8876_WHITE, "FPS: %lu", fps);
 
         ra8876_swap_buffers(&display);
 
@@ -158,12 +200,12 @@ void demo3_text(void) {
 
     ra8876_fill_screen(&display, RA8876_BLUE);
 
-    ra8876_fill_rect(&display, 0, 0, RA8876_WIDTH, 31, RA8876_DARKGRAY);
+    ra8876_fill_rect(&display, 0, 0, display.width, 31, RA8876_DARKGRAY);
     ra8876_print(&display, 10, 8, RA8876_WHITE, "Untitled.txt - Text Editor");
 
-    ra8876_fill_rect(&display, 0, 31, RA8876_WIDTH, RA8876_HEIGHT - 61, RA8876_BLACK);
+    ra8876_fill_rect(&display, 0, 31, display.width, display.height - 61, RA8876_BLACK);
 
-    ra8876_fill_rect(&display, 0, RA8876_HEIGHT - 30, RA8876_WIDTH, 30, RA8876_DARKGRAY);
+    ra8876_fill_rect(&display, 0, display.height - 30, display.width, 30, RA8876_DARKGRAY);
 
     ra8876_set_text_colors(&display, RA8876_GREEN, RA8876_BLACK);
 
@@ -229,8 +271,8 @@ void demo3_text(void) {
             last_fps_time = now;
             printf("FPS: %lu (cursor blink demo)\n", fps);
 
-            ra8876_fill_rect(&display, 0, RA8876_HEIGHT - 30, RA8876_WIDTH, 30, RA8876_DARKGRAY);
-            ra8876_printf(&display, 10, RA8876_HEIGHT - 22, RA8876_WHITE,
+            ra8876_fill_rect(&display, 0, display.height - 30, display.width, 30, RA8876_DARKGRAY);
+            ra8876_printf(&display, 10, display.height - 22, RA8876_WHITE,
                 "Line %d, Col %d | FPS: %lu | 128x37 chars",
                 cursor_line + 1, cursor_col + 1, fps);
         }
@@ -255,7 +297,7 @@ void demo4_bte(void) {
     ra8876_set_canvas_page(&display, 3);
     ra8876_fill_screen(&display, RA8876_BLACK);
     for (int i = 0; i < 10; i++) {
-        ra8876_fill_rect(&display, i * 100, 0, 51, 600, ra8876_rgb332(i * 25, 50, 100));
+        ra8876_fill_rect(&display, i * 100, 0, 51, 600, ra8876_rgb(i * 25, 50, 100));
     }
 
     int sprite_x = 100, sprite_y = 100;
@@ -268,12 +310,12 @@ void demo4_bte(void) {
         uint32_t frame_start = time_us_32();
         uint8_t draw_page = ra8876_get_draw_page(&display);
 
-        ra8876_bte_copy(&display, 3, 0, 0, draw_page, 0, 0, RA8876_WIDTH, RA8876_HEIGHT, RA8876_ROP_S);
+        ra8876_bte_copy(&display, ra8876_page_addr(&display, 3), 0, 0, ra8876_page_addr(&display, draw_page), 0, 0, display.width, display.height, RA8876_ROP_S);
 
-        ra8876_bte_copy_chroma(&display, 2, 0, 0, draw_page, sprite_x, sprite_y, 100, 100, RA8876_MAGENTA);
+        ra8876_bte_copy_chroma(&display, ra8876_page_addr(&display, 2), 0, 0, ra8876_page_addr(&display, draw_page), sprite_x, sprite_y, 100, 100, RA8876_MAGENTA);
 
-        ra8876_bte_copy_chroma(&display, 2, 0, 0, draw_page, sprite_x + 150, sprite_y, 100, 100, RA8876_MAGENTA);
-        ra8876_bte_copy_chroma(&display, 2, 0, 0, draw_page, sprite_x + 300, sprite_y, 100, 100, RA8876_MAGENTA);
+        ra8876_bte_copy_chroma(&display, ra8876_page_addr(&display, 2), 0, 0, ra8876_page_addr(&display, draw_page), sprite_x + 150, sprite_y, 100, 100, RA8876_MAGENTA);
+        ra8876_bte_copy_chroma(&display, ra8876_page_addr(&display, 2), 0, 0, ra8876_page_addr(&display, draw_page), sprite_x + 300, sprite_y, 100, 100, RA8876_MAGENTA);
 
         ra8876_printf(&display, 10, 10, RA8876_WHITE, "BTE Demo - FPS: %lu", fps);
         ra8876_printf(&display, 10, 30, RA8876_CYAN, "Sprites with chroma key transparency");
@@ -282,8 +324,8 @@ void demo4_bte(void) {
 
         sprite_x += dx;
         sprite_y += dy;
-        if (sprite_x <= 0 || sprite_x + 400 >= RA8876_WIDTH) dx = -dx;
-        if (sprite_y <= 50 || sprite_y + 100 >= RA8876_HEIGHT) dy = -dy;
+        if (sprite_x <= 0 || sprite_x + 400 >= (int)display.width) dx = -dx;
+        if (sprite_y <= 50 || sprite_y + 100 >= (int)display.height) dy = -dy;
 
         frame_count++;
         uint32_t now = time_us_32();
@@ -306,12 +348,12 @@ void demo5_cursor(void) {
     printf("Demo 5: Hardware Cursor\n");
 
     ra8876_fill_screen(&display, RA8876_BLACK);
-    ra8876_fill_rect(&display, 0, 0, RA8876_WIDTH, 31, RA8876_DARKGRAY);
+    ra8876_fill_rect(&display, 0, 0, display.width, 31, RA8876_DARKGRAY);
     ra8876_print(&display, 10, 8, RA8876_WHITE, "Hardware Cursor Demo - Zero CPU Blink");
 
-    ra8876_fill_rect(&display, 20, 50, RA8876_WIDTH - 40, RA8876_HEIGHT - 100, ra8876_rgb332(0, 0, 40));
+    ra8876_fill_rect(&display, 20, 50, display.width - 40, display.height - 100, ra8876_rgb(0, 0, 40));
 
-    ra8876_set_text_colors(&display, RA8876_GREEN, ra8876_rgb332(0, 0, 40));
+    ra8876_set_text_colors(&display, RA8876_GREEN, ra8876_rgb(0, 0, 40));
 
     const char *text[] = {
         "The RA8876 has a hardware text cursor.",
@@ -359,16 +401,16 @@ void demo6_pip(void) {
     printf("Demo 6: PIP Hardware HUD\n");
 
     ra8876_set_canvas_page(&display, 0);
-    ra8876_fill_screen(&display, ra8876_rgb332(0, 0, 80));
+    ra8876_fill_screen(&display, ra8876_rgb(0, 0, 80));
     for (int i = 0; i < 20; i++) {
-        ra8876_draw_line(&display, 0, i * 30, RA8876_WIDTH, i * 30, RA8876_DARKGRAY);
-        ra8876_draw_line(&display, i * 60, 0, i * 60, RA8876_HEIGHT, RA8876_DARKGRAY);
+        ra8876_draw_line(&display, 0, i * 30, display.width, i * 30, RA8876_DARKGRAY);
+        ra8876_draw_line(&display, i * 60, 0, i * 60, display.height, RA8876_DARKGRAY);
     }
     ra8876_print(&display, 300, 280, RA8876_WHITE, "Main Display - Background Grid");
     ra8876_print(&display, 250, 320, RA8876_GRAY, "PIP windows float above without redrawing this");
 
     ra8876_set_canvas_page(&display, 2);
-    ra8876_fill_rect(&display, 0, 0, 200, 100, ra8876_rgb332(40, 0, 0));
+    ra8876_fill_rect(&display, 0, 0, 200, 100, ra8876_rgb(40, 0, 0));
     ra8876_draw_rect(&display, 0, 0, 200, 100, RA8876_RED);
     ra8876_print(&display, 10, 10, RA8876_WHITE, "HUD Window 1");
     ra8876_print(&display, 10, 35, RA8876_YELLOW, "HP: 100/100");
@@ -376,7 +418,7 @@ void demo6_pip(void) {
     ra8876_print(&display, 10, 75, RA8876_GREEN, "Gold: 1234");
 
     ra8876_set_canvas_page(&display, 3);
-    ra8876_fill_rect(&display, 0, 0, 152, 62, ra8876_rgb332(0, 40, 0));
+    ra8876_fill_rect(&display, 0, 0, 152, 62, ra8876_rgb(0, 40, 0));
     ra8876_draw_rect(&display, 0, 0, 152, 62, RA8876_GREEN);
     ra8876_print(&display, 10, 10, RA8876_WHITE, "Minimap");
     ra8876_fill_circle(&display, 75, 35, 5, RA8876_RED);
@@ -385,27 +427,27 @@ void demo6_pip(void) {
 
     ra8876_set_canvas_page(&display, 0);
 
-    ra8876_pip1_enable(&display, 2, 20, 20, 200, 100);
-    ra8876_pip2_enable(&display, 3, RA8876_WIDTH - 170, 20, 152, 62);
+    ra8876_pip1_enable(&display, ra8876_page_addr(&display, 2), 20, 20, 200, 100);
+    ra8876_pip2_enable(&display, ra8876_page_addr(&display, 3), display.width - 170, 20, 152, 62);
 
     ra8876_print(&display, 300, 550, RA8876_WHITE, "PIP windows move with ZERO background redraw!");
 
     int pip1_x = 20, pip1_y = 20;
     int pip1_dx = 3, pip1_dy = 2;
-    int pip2_x = RA8876_WIDTH - 170, pip2_y = 20;
+    int pip2_x = display.width - 170, pip2_y = 20;
     int pip2_dx = -2, pip2_dy = 3;
 
     for (int i = 0; i < 500; i++) {
         pip1_x += pip1_dx;
         pip1_y += pip1_dy;
-        if (pip1_x <= 0 || pip1_x + 200 >= RA8876_WIDTH) pip1_dx = -pip1_dx;
-        if (pip1_y <= 0 || pip1_y + 100 >= RA8876_HEIGHT - 50) pip1_dy = -pip1_dy;
+        if (pip1_x <= 0 || pip1_x + 200 >= (int)display.width) pip1_dx = -pip1_dx;
+        if (pip1_y <= 0 || pip1_y + 100 >= (int)display.height - 50) pip1_dy = -pip1_dy;
         ra8876_pip1_move(&display, pip1_x, pip1_y);
 
         pip2_x += pip2_dx;
         pip2_y += pip2_dy;
-        if (pip2_x <= 0 || pip2_x + 152 >= RA8876_WIDTH) pip2_dx = -pip2_dx;
-        if (pip2_y <= 0 || pip2_y + 62 >= RA8876_HEIGHT - 50) pip2_dy = -pip2_dy;
+        if (pip2_x <= 0 || pip2_x + 152 >= (int)display.width) pip2_dx = -pip2_dx;
+        if (pip2_y <= 0 || pip2_y + 62 >= (int)display.height - 50) pip2_dy = -pip2_dy;
         ra8876_pip2_move(&display, pip2_x, pip2_y);
 
         sleep_ms(16);
@@ -523,8 +565,8 @@ void demo7_cgram(void) {
 
     ra8876_select_cgram_font(&display, RA8876_FONT_16);
 
-    ra8876_fill_screen(&display, ra8876_rgb332(0, 0, 32));
-    ra8876_set_text_colors(&display, RA8876_GREEN, ra8876_rgb332(0, 0, 32));
+    ra8876_fill_screen(&display, ra8876_rgb(0, 0, 32));
+    ra8876_set_text_colors(&display, RA8876_GREEN, ra8876_rgb(0, 0, 32));
     ra8876_set_text_cursor(&display, 0, 0);
     ra8876_put_cgram_string(&display, "OLDSCHOOL FONT DEMO - ASCII 32-126");
 
@@ -537,7 +579,7 @@ void demo7_cgram(void) {
     ra8876_set_text_cursor(&display, 0, 60);
     ra8876_put_cgram_string(&display, "0123456789 !@#$%^&*() []{}|;':\",./<>?");
 
-    ra8876_set_text_colors(&display, RA8876_CYAN, ra8876_rgb332(0, 0, 32));
+    ra8876_set_text_colors(&display, RA8876_CYAN, ra8876_rgb(0, 0, 32));
     ra8876_set_text_cursor(&display, 0, 100);
     ra8876_put_cgram_string(&display, "C:\\>DIR /W");
     ra8876_set_text_cursor(&display, 0, 120);
@@ -551,8 +593,8 @@ void demo7_cgram(void) {
 
     ra8876_buffer_init(&display, 4);
 
-    uint16_t cols = RA8876_WIDTH / 8;
-    uint16_t rows = RA8876_HEIGHT / 16;
+    uint16_t cols = display.width / 8;
+    uint16_t rows = display.height / 16;
     uint16_t total_chars = cols * rows;
 
     char line[129];
@@ -580,7 +622,7 @@ void demo7_cgram(void) {
 
         ra8876_set_text_colors(&display, RA8876_WHITE, RA8876_BLACK);
         ra8876_select_internal_font(&display, RA8876_FONT_16, RA8876_ENC_8859_1);
-        ra8876_printf(&display, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
+        ra8876_printf(&display, 10, display.height - 20, RA8876_WHITE, "FPS: %lu", fps);
         ra8876_select_cgram_font(&display, RA8876_FONT_16);
 
         ra8876_swap_buffers(&display);
@@ -621,8 +663,8 @@ void demo8_internal_font_bench(void) {
 
     ra8876_buffer_init(&display, 2);
 
-    uint16_t cols = RA8876_WIDTH / 8;
-    uint16_t rows = RA8876_HEIGHT / 16;
+    uint16_t cols = display.width / 8;
+    uint16_t rows = display.height / 16;
     uint16_t total_chars = cols * rows;
 
     char line[129];
@@ -637,7 +679,6 @@ void demo8_internal_font_bench(void) {
     ra8876_select_internal_font(&display, RA8876_FONT_16, RA8876_ENC_8859_1);
 
     for (int f = 0; f < 300; f++) {
-        uint8_t draw_page = ra8876_get_draw_page(&display);
         ra8876_set_text_colors(&display, RA8876_GREEN, RA8876_BLACK);
 
         for (int row = 0; row < rows; row++) {
@@ -650,7 +691,7 @@ void demo8_internal_font_bench(void) {
             ra8876_put_string(&display, line);
         }
 
-        ra8876_printf(&display, 10, RA8876_HEIGHT - 20, RA8876_WHITE, "FPS: %lu", fps);
+        ra8876_printf(&display, 10, display.height - 20, RA8876_WHITE, "FPS: %lu", fps);
 
         ra8876_swap_buffers(&display);
         frames++;
@@ -724,10 +765,10 @@ void demo10_cgram_cursor(void) {
     ra8876_cgram_init(&display);
     ra8876_cgram_upload_font(&display, oldschool_font_8x16, ' ', 95, 16);
 
-    ra8876_fill_screen(&display, ra8876_rgb332(0, 0, 40));
+    ra8876_fill_screen(&display, ra8876_rgb(0, 0, 40));
 
     ra8876_select_cgram_font(&display, RA8876_FONT_16);
-    ra8876_set_text_colors(&display, RA8876_GREEN, ra8876_rgb332(0, 0, 40));
+    ra8876_set_text_colors(&display, RA8876_GREEN, ra8876_rgb(0, 0, 40));
 
     ra8876_set_text_cursor(&display, 0, 0);
     ra8876_put_cgram_string(&display, "RETRO TERMINAL v1.0");
@@ -761,13 +802,13 @@ void demo10_cgram_cursor(void) {
     ra8876_cursor_size(&display, 8, 16);
     ra8876_cursor_show(&display, true);
 
-    ra8876_set_text_colors(&display, RA8876_YELLOW, ra8876_rgb332(0, 0, 40));
+    ra8876_set_text_colors(&display, RA8876_YELLOW, ra8876_rgb(0, 0, 40));
     ra8876_set_text_cursor(&display, 0, 350);
     ra8876_put_cgram_string(&display, "Hardware cursor blinking - zero CPU!");
 
     sleep_ms(3000);
 
-    ra8876_set_text_colors(&display, RA8876_CYAN, ra8876_rgb332(0, 0, 40));
+    ra8876_set_text_colors(&display, RA8876_CYAN, ra8876_rgb(0, 0, 40));
     ra8876_set_text_cursor(&display, 0, 380);
     ra8876_put_cgram_string(&display, "Selecting text with invert_area()...");
 
@@ -778,7 +819,7 @@ void demo10_cgram_cursor(void) {
     sleep_ms(500);
     ra8876_invert_area(&display, 0, 50 + 6 * 18, 8 * 45, 18);
 
-    ra8876_set_text_colors(&display, RA8876_WHITE, ra8876_rgb332(0, 0, 40));
+    ra8876_set_text_colors(&display, RA8876_WHITE, ra8876_rgb(0, 0, 40));
     ra8876_set_text_cursor(&display, 0, 420);
     ra8876_put_cgram_string(&display, "3 files selected!");
 
@@ -817,8 +858,8 @@ void demo10_cgram_cursor(void) {
 }
 
 #define LIFE_CELL_SIZE 8
-#define LIFE_COLS (RA8876_WIDTH / LIFE_CELL_SIZE)
-#define LIFE_ROWS ((RA8876_HEIGHT - 40) / LIFE_CELL_SIZE)
+#define LIFE_COLS (1024 / LIFE_CELL_SIZE)
+#define LIFE_ROWS ((600 - 40) / LIFE_CELL_SIZE)
 
 static uint8_t life_grid[LIFE_ROWS][LIFE_COLS];
 static uint8_t life_next[LIFE_ROWS][LIFE_COLS];
@@ -882,9 +923,9 @@ static void life_step(void) {
 }
 
 static void life_draw(uint8_t page) {
-    ra8876_bte_solid_fill(&display, page, 0, 40, RA8876_WIDTH, RA8876_HEIGHT - 40, RA8876_BLACK);
+    ra8876_bte_solid_fill(&display, ra8876_page_addr(&display, page), 0, 40, display.width, display.height - 40, RA8876_BLACK);
 
-    ra8876_bte_batch_start(&display, page, LIFE_CELL_SIZE - 1, LIFE_CELL_SIZE - 1);
+    ra8876_bte_batch_start(&display, ra8876_page_addr(&display, page), LIFE_CELL_SIZE - 1, LIFE_CELL_SIZE - 1);
     for (int y = 0; y < LIFE_ROWS; y++) {
         for (int x = 0; x < LIFE_COLS; x++) {
             if (life_grid[y][x]) {
@@ -914,7 +955,7 @@ void demo11_game_of_life(void) {
     for (int i = 0; i < 1000; i++) {
         uint8_t draw_page = ra8876_get_draw_page(&display);
 
-        ra8876_bte_solid_fill(&display, draw_page, 0, 0, RA8876_WIDTH, 40, ra8876_rgb332(0, 0, 60));
+        ra8876_bte_solid_fill(&display, ra8876_page_addr(&display, draw_page), 0, 0, display.width, 40, ra8876_rgb(0, 0, 60));
 
         life_draw(draw_page);
 
@@ -957,7 +998,7 @@ void demo11_game_of_life(void) {
 typedef struct {
     int16_t x, y;
     int16_t w, h;
-    uint8_t color;
+    uint32_t color;
 } platform_t;
 
 static struct {
@@ -985,7 +1026,7 @@ static void plat_init(void) {
         platforms[i].y = 350 + (rand() % 120);
         platforms[i].w = 80 + (rand() % 60);
         platforms[i].h = 16;
-        platforms[i].color = ra8876_rgb332(50 + (rand() % 50), 150 + (rand() % 100), 50);
+        platforms[i].color = ra8876_rgb(50 + (rand() % 50), 150 + (rand() % 100), 50);
     }
 }
 
@@ -998,7 +1039,7 @@ static void plat_spawn_platform(int idx) {
     platforms[idx].y = 300 + (rand() % 180);
     platforms[idx].w = 60 + (rand() % 80);
     platforms[idx].h = 16;
-    platforms[idx].color = ra8876_rgb332(50 + (rand() % 50), 150 + (rand() % 100), 50);
+    platforms[idx].color = ra8876_rgb(50 + (rand() % 50), 150 + (rand() % 100), 50);
 }
 
 static bool plat_on_platform(void) {
@@ -1091,46 +1132,48 @@ static void plat_update(void) {
         player.on_ground = plat_on_platform();
     }
 
-    if (player.y > RA8876_HEIGHT) {
+    if (player.y > (int16_t)display.height) {
         plat_init();
     }
 }
 
 static void plat_draw(uint8_t page) {
-    ra8876_bte_solid_fill(&display, page, 0, 0, RA8876_WIDTH, RA8876_HEIGHT, ra8876_rgb332(40, 44, 52));
+    uint32_t addr = ra8876_page_addr(&display, page);
+
+    ra8876_bte_solid_fill(&display, addr, 0, 0, display.width, display.height, ra8876_rgb(40, 44, 52));
 
     for (int i = 0; i < 6; i++) {
         int16_t mx = ((i * 200) - (bg_scroll / 3) % 200 + 1200) % 1200 - 100;
-        if (mx >= 0 && mx + 60 < RA8876_WIDTH)
-            ra8876_bte_solid_fill(&display, page, mx, 80 + i * 15, 60, 40, ra8876_rgb332(60, 64, 72));
+        if (mx >= 0 && mx + 60 < (int16_t)display.width)
+            ra8876_bte_solid_fill(&display, addr, mx, 80 + i * 15, 60, 40, ra8876_rgb(60, 64, 72));
     }
 
-    ra8876_bte_solid_fill(&display, page, 0, PLAT_GROUND_Y, RA8876_WIDTH, RA8876_HEIGHT - PLAT_GROUND_Y, ra8876_rgb332(60, 40, 30));
-    ra8876_bte_solid_fill(&display, page, 0, PLAT_GROUND_Y, RA8876_WIDTH, 5, ra8876_rgb332(80, 60, 40));
+    ra8876_bte_solid_fill(&display, addr, 0, PLAT_GROUND_Y, display.width, display.height - PLAT_GROUND_Y, ra8876_rgb(60, 40, 30));
+    ra8876_bte_solid_fill(&display, addr, 0, PLAT_GROUND_Y, display.width, 5, ra8876_rgb(80, 60, 40));
 
     for (int i = 0; i < PLAT_MAX_PLATFORMS; i++) {
         int16_t px = platforms[i].x - scroll_x;
-        if (px > -platforms[i].w && px < RA8876_WIDTH) {
+        if (px > -platforms[i].w && px < (int16_t)display.width) {
             int16_t draw_x = (px < 0) ? 0 : px;
             int16_t draw_w = platforms[i].w - ((px < 0) ? -px : 0);
-            if (draw_x + draw_w > RA8876_WIDTH) draw_w = RA8876_WIDTH - draw_x;
+            if (draw_x + draw_w > (int16_t)display.width) draw_w = display.width - draw_x;
             if (draw_w > 0) {
-                ra8876_bte_solid_fill(&display, page, draw_x, platforms[i].y, draw_w, platforms[i].h, platforms[i].color);
-                ra8876_bte_solid_fill(&display, page, draw_x, platforms[i].y, draw_w, 4, ra8876_rgb332(100, 200, 100));
+                ra8876_bte_solid_fill(&display, addr, draw_x, platforms[i].y, draw_w, platforms[i].h, platforms[i].color);
+                ra8876_bte_solid_fill(&display, addr, draw_x, platforms[i].y, draw_w, 4, ra8876_rgb(100, 200, 100));
             }
         }
     }
 
-    uint8_t body_color = ra8876_rgb332(220, 120, 100);
-    uint8_t head_color = ra8876_rgb332(255, 200, 180);
+    uint32_t body_color = ra8876_rgb(220, 120, 100);
+    uint32_t head_color = ra8876_rgb(255, 200, 180);
 
-    ra8876_bte_solid_fill(&display, page, player.x, player.y + 10, PLAT_PLAYER_W, PLAT_PLAYER_H - 10, body_color);
-    ra8876_bte_solid_fill(&display, page, player.x + 4, player.y, 16, 14, head_color);
+    ra8876_bte_solid_fill(&display, addr, player.x, player.y + 10, PLAT_PLAYER_W, PLAT_PLAYER_H - 10, body_color);
+    ra8876_bte_solid_fill(&display, addr, player.x + 4, player.y, 16, 14, head_color);
 
     int leg_offset = (scroll_x / 4) % 8;
     if (!player.on_ground) leg_offset = 4;
-    ra8876_bte_solid_fill(&display, page, player.x + 4, player.y + PLAT_PLAYER_H, 4, leg_offset, body_color);
-    ra8876_bte_solid_fill(&display, page, player.x + PLAT_PLAYER_W - 8, player.y + PLAT_PLAYER_H, 4, 8 - leg_offset, body_color);
+    ra8876_bte_solid_fill(&display, addr, player.x + 4, player.y + PLAT_PLAYER_H, 4, leg_offset, body_color);
+    ra8876_bte_solid_fill(&display, addr, player.x + PLAT_PLAYER_W - 8, player.y + PLAT_PLAYER_H, 4, 8 - leg_offset, body_color);
 }
 
 void demo12_platformer(void) {
@@ -1175,7 +1218,7 @@ void demo12_platformer(void) {
 void demo13_blend_write_pip(void) {
     printf("Demo 13: BTE Write, Blend & Dual PIP\n");
 
-    uint8_t *pixels = malloc(128 * 128 * sizeof(uint8_t));
+    uint8_t *pixels = malloc(128 * 128);
     if (!pixels) {
         printf("Failed to allocate pixel buffer\n");
         return;
@@ -1188,33 +1231,35 @@ void demo13_blend_write_pip(void) {
             uint8_t r = (x * 2) & 0xFF;
             uint8_t g = (y * 2) & 0xFF;
             uint8_t b = (255 - dist) & 0xFF;
-            pixels[y * 128 + x] = ra8876_rgb332(r, g, b);
+
+            size_t idx = y * 128 + x;
+            pixels[idx] = (r & 0xE0) | ((g >> 3) & 0x1C) | (b >> 6);
         }
     }
 
     ra8876_set_canvas_page(&display, 2);
-    ra8876_fill_screen(&display, ra8876_rgb332(20, 20, 60));
+    ra8876_fill_screen(&display, ra8876_rgb(20, 20, 60));
     for (int i = 0; i < 12; i++) {
-        uint8_t color = ra8876_rgb332(100 + i * 10, 50, 150 - i * 10);
+        uint32_t color = ra8876_rgb(100 + i * 10, 50, 150 - i * 10);
         ra8876_fill_circle(&display, 100 + i * 80, 300, 60 - i * 3, color);
     }
     ra8876_print(&display, 350, 50, RA8876_WHITE, "Layer A: Circles");
 
     ra8876_set_canvas_page(&display, 3);
-    ra8876_fill_screen(&display, ra8876_rgb332(60, 20, 20));
+    ra8876_fill_screen(&display, ra8876_rgb(60, 20, 20));
     for (int i = 0; i < 8; i++) {
-        uint8_t color = ra8876_rgb332(200, 100 + i * 15, 50);
+        uint32_t color = ra8876_rgb(200, 100 + i * 15, 50);
         ra8876_fill_rect(&display, 50 + i * 120, 100, 51, 401, color);
     }
     ra8876_print(&display, 350, 50, RA8876_WHITE, "Layer B: Bars");
 
     ra8876_set_canvas_page(&display, 4);
     ra8876_fill_screen(&display, RA8876_BLACK);
-    ra8876_bte_write(&display, 4, 0, 0, 128, 128, pixels);
+    ra8876_bte_write(&display, ra8876_page_addr(&display, 4), 0, 0, 128, 128, pixels);
     ra8876_draw_rect(&display, 0, 0, 128, 128, RA8876_WHITE);
 
     ra8876_set_canvas_page(&display, 5);
-    ra8876_fill_rect(&display, 0, 0, 140, 60, ra8876_rgb332(0, 60, 0));
+    ra8876_fill_rect(&display, 0, 0, 140, 60, ra8876_rgb(0, 60, 0));
     ra8876_draw_rect(&display, 0, 0, 140, 60, RA8876_GREEN);
     ra8876_print(&display, 10, 10, RA8876_WHITE, "PIP2 Overlay");
     ra8876_print(&display, 10, 35, RA8876_CYAN, "Alpha Blend");
@@ -1224,8 +1269,8 @@ void demo13_blend_write_pip(void) {
     ra8876_set_canvas_page(&display, 0);
     ra8876_fill_screen(&display, RA8876_BLACK);
 
-    ra8876_pip1_enable(&display, 4, 100, 200, 128, 128);
-    ra8876_pip2_enable(&display, 5, 800, 50, 140, 60);
+    ra8876_pip1_enable(&display, ra8876_page_addr(&display, 4), 100, 200, 128, 128);
+    ra8876_pip2_enable(&display, ra8876_page_addr(&display, 5), 800, 50, 140, 60);
 
     int pip1_x = 100, pip1_y = 200;
     int pip1_dx = 4, pip1_dy = 3;
@@ -1239,7 +1284,7 @@ void demo13_blend_write_pip(void) {
     uint32_t last_fps_time = time_us_32();
 
     for (int i = 0; i < 600; i++) {
-        ra8876_bte_blend(&display, 2, 0, 0, 3, 0, 0, 0, 0, 0, RA8876_WIDTH, RA8876_HEIGHT, alpha);
+        ra8876_bte_blend(&display, ra8876_page_addr(&display, 2), 0, 0, ra8876_page_addr(&display, 3), 0, 0, ra8876_page_addr(&display, 0), 0, 0, display.width, display.height, alpha);
 
         ra8876_set_canvas_page(&display, 0);
         ra8876_printf(&display, 10, 10, RA8876_WHITE, "Alpha: %3d/255  FPS: %lu", alpha, fps);
@@ -1247,14 +1292,14 @@ void demo13_blend_write_pip(void) {
 
         pip1_x += pip1_dx;
         pip1_y += pip1_dy;
-        if (pip1_x <= 0 || pip1_x + 128 >= RA8876_WIDTH) pip1_dx = -pip1_dx;
-        if (pip1_y <= 40 || pip1_y + 128 >= RA8876_HEIGHT - 40) pip1_dy = -pip1_dy;
+        if (pip1_x <= 0 || pip1_x + 128 >= (int)display.width) pip1_dx = -pip1_dx;
+        if (pip1_y <= 40 || pip1_y + 128 >= (int)display.height - 40) pip1_dy = -pip1_dy;
         ra8876_pip1_move(&display, pip1_x, pip1_y);
 
         pip2_x += pip2_dx;
         pip2_y += pip2_dy;
-        if (pip2_x <= 0 || pip2_x + 140 >= RA8876_WIDTH) pip2_dx = -pip2_dx;
-        if (pip2_y <= 40 || pip2_y + 60 >= RA8876_HEIGHT - 40) pip2_dy = -pip2_dy;
+        if (pip2_x <= 0 || pip2_x + 140 >= (int)display.width) pip2_dx = -pip2_dx;
+        if (pip2_y <= 40 || pip2_y + 60 >= (int)display.height - 40) pip2_dy = -pip2_dy;
         ra8876_pip2_move(&display, pip2_x, pip2_y);
 
         alpha += alpha_dir;
@@ -1282,12 +1327,12 @@ void demo14_text_transparency(void) {
     ra8876_fill_screen(&display, RA8876_BLACK);
 
     for (int i = 0; i < 20; i++) {
-        uint8_t color = ra8876_rgb332(i * 12, 50, 255 - i * 12);
-        ra8876_fill_rect(&display, i * 52, 0, 52, RA8876_HEIGHT, color);
+        uint32_t color = ra8876_rgb(i * 12, 50, 255 - i * 12);
+        ra8876_fill_rect(&display, i * 52, 0, 52, display.height, color);
     }
 
-    for (int y = 0; y < RA8876_HEIGHT; y += 40) {
-        ra8876_draw_line(&display, 0, y, RA8876_WIDTH, y, RA8876_DARKGRAY);
+    for (uint16_t y = 0; y < display.height; y += 40) {
+        ra8876_draw_line(&display, 0, y, display.width, y, RA8876_DARKGRAY);
     }
 
     ra8876_print(&display, 300, 30, RA8876_WHITE, "Text Transparency Demo");
@@ -1316,7 +1361,7 @@ void demo14_text_transparency(void) {
 
     for (int y = 380; y < 500; y += 30) {
         for (int x = 50; x < 900; x += 150) {
-            uint8_t color = ra8876_rgb332(rand() % 256, rand() % 256, rand() % 256);
+            uint32_t color = ra8876_rgb(rand() % 256, rand() % 256, rand() % 256);
             ra8876_fill_circle(&display, x + rand() % 50, y + rand() % 20, 10 + rand() % 20, color);
         }
     }
@@ -1339,13 +1384,14 @@ void demo14_text_transparency(void) {
     sleep_ms(8000);
 }
 
+
 int main() {
     stdio_init_all();
     sleep_ms(1000);
 
     printf("\n=== RA8876 Demo Suite ===\n");
 
-    if (!ra8876_init(&display)) {
+    if (!ra8876_init(&display, 1024, 600)) {
         printf("RA8876 init failed!\n");
         while (1) sleep_ms(1000);
     }
@@ -1354,8 +1400,8 @@ int main() {
 
     while (1) {
         demo1_shapes();
+        demo2_power();
         demo2_bounce();
-        demo3_text();
         demo4_bte();
         demo5_cursor();
         demo6_pip();
