@@ -182,6 +182,8 @@ typedef struct {
 
     uint16_t char_width;
     uint16_t char_height;
+    uint16_t rows;
+    uint16_t cols;
 
     uint32_t canvas_addr;
     uint8_t draw_page;

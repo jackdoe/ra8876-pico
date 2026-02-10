@@ -282,6 +282,8 @@ bool ra8876_init(ra8876_t *dev, uint16_t width, uint16_t height) {
 
     dev->char_width = 8;
     dev->char_height = 16;
+    dev->cols = width / 8;
+    dev->rows = height / 16;
     dev->canvas_addr = 0;
     dev->draw_page = 0;
     dev->display_page = 0;
