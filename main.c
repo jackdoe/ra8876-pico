@@ -1385,6 +1385,54 @@ void demo14_text_transparency(void) {
 }
 
 
+void demo15_cgram_inv(void) {
+    printf("Demo 15: CGRAM Inverted Font\n");
+
+    ra8876_cgram_init(&display);
+    ra8876_cgram_upload_font(&display, oldschool_font_8x16, ' ', 95, 16);
+    ra8876_cgram_upload_inv_font(&display, oldschool_font_8x16, ' ', 95, 16);
+
+    ra8876_select_cgram_font(&display, RA8876_FONT_16);
+
+    ra8876_fill_screen(&display, ra8876_rgb(0, 0, 40));
+    ra8876_set_text_colors(&display, RA8876_GREEN, ra8876_rgb(0, 0, 40));
+
+    ra8876_set_text_cursor(&display, 0, 0);
+    ra8876_put_cgram_string(&display, "NORMAL CGRAM TEXT");
+
+    ra8876_set_text_cursor(&display, 0, 20);
+    ra8876_put_cgram_string_off(&display, "INVERTED CGRAM TEXT", 1);
+
+    ra8876_set_text_cursor(&display, 0, 60);
+    ra8876_put_cgram_string(&display, "Normal ");
+    ra8876_put_cgram_string_off(&display, " SELECTED ", 1);
+    ra8876_put_cgram_string(&display, " Normal");
+
+    ra8876_set_text_colors(&display, RA8876_WHITE, ra8876_rgb(0, 0, 40));
+    ra8876_set_text_cursor(&display, 0, 100);
+    ra8876_put_cgram_string(&display, "C:\\>DIR /W");
+    ra8876_set_text_cursor(&display, 0, 120);
+    ra8876_put_cgram_string(&display, " COMMAND  COM     47,845  01-01-90");
+    ra8876_set_text_cursor(&display, 0, 140);
+    ra8876_put_cgram_string_off(&display, " CONFIG   SYS        512  01-01-90", 1);
+    ra8876_set_text_cursor(&display, 0, 160);
+    ra8876_put_cgram_string_off(&display, " AUTOEXEC BAT        128  01-01-90", 1);
+    ra8876_set_text_cursor(&display, 0, 180);
+    ra8876_put_cgram_string(&display, " GAMES    <DIR>           01-01-90");
+
+    ra8876_set_text_colors(&display, RA8876_CYAN, ra8876_rgb(0, 0, 40));
+    ra8876_set_text_cursor(&display, 0, 220);
+    ra8876_put_cgram_string(&display, "Menu bar: ");
+    ra8876_put_cgram_string_off(&display, " File ", 1);
+    ra8876_put_cgram_string(&display, " Edit ");
+    ra8876_put_cgram_string_off(&display, " View ", 1);
+    ra8876_put_cgram_string(&display, " Help ");
+
+    sleep_ms(8000);
+
+    ra8876_select_internal_font(&display, RA8876_FONT_16, RA8876_ENC_8859_1);
+}
+
 int main() {
     stdio_init_all();
     sleep_ms(1000);
@@ -1413,5 +1461,6 @@ int main() {
         demo12_platformer();
         demo13_blend_write_pip();
         demo14_text_transparency();
+        demo15_cgram_inv();
     }
 }

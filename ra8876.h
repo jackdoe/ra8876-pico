@@ -333,7 +333,9 @@ void ra8876_pip2_disable(ra8876_t *dev);
 
 void ra8876_cgram_init(ra8876_t *dev);
 void ra8876_cgram_upload_font(ra8876_t *dev, const uint8_t *data, uint8_t first_char, uint8_t num_chars, uint8_t font_height);
+void ra8876_cgram_upload_inv_font(ra8876_t *dev, const uint8_t *data, uint8_t first_char, uint8_t num_chars, uint8_t font_height);
 void ra8876_select_cgram_font(ra8876_t *dev, uint8_t size);
+void ra8876_put_cgram_string_off(ra8876_t *dev, const char *str, uint8_t offset);
 void ra8876_put_cgram_string(ra8876_t *dev, const char *str);
 
 void ra8876_set_fg_color(ra8876_t *dev, uint32_t color);

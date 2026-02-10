@@ -968,6 +968,36 @@ void ra8876_cgram_upload_font(ra8876_t *dev, const uint8_t *data, uint8_t first_
     cmd(dev, RA8876_CHIP_ID);
 }
 
+void ra8876_cgram_upload_inv_font(ra8876_t *dev, const uint8_t *data, uint8_t first_char, uint8_t num_chars, uint8_t font_height) {
+    uint32_t bytes_per_char;
+    switch (font_height) {
+        case 24: bytes_per_char = 48; break;
+        case 32: bytes_per_char = 64; break;
+        default: bytes_per_char = 16; break;
+    }
+
+    uint32_t addr = cgram_addr(dev) + (256 + first_char) * bytes_per_char;
+
+    ra8876_wait_task_busy(dev);
+    reg_wr(dev, RA8876_AW_COLOR, 0x04);
+    reg_wr32(dev, RA8876_CURH, addr);
+    cmd(dev, RA8876_MRWDP);
+
+    while (ra8876_read_status(dev) & 0x80);
+
+    uint8_t inv[64];
+    for (uint8_t c = 0; c < num_chars; c++) {
+        for (uint32_t i = 0; i < bytes_per_char; i++)
+            inv[i] = ~data[c * bytes_per_char + i];
+        ra8876_write_data_burst(dev, inv, bytes_per_char);
+    }
+
+    ra8876_wait_write_fifo_empty(dev);
+    ra8876_wait_task_busy(dev);
+    reg_wr(dev, RA8876_AW_COLOR, 0x00);
+    cmd(dev, RA8876_CHIP_ID);
+}
+
 void ra8876_select_cgram_font(ra8876_t *dev, uint8_t size) {
     switch (size) {
         case RA8876_FONT_24: dev->char_width = 12; dev->char_height = 24; break;
@@ -979,17 +1009,21 @@ void ra8876_select_cgram_font(ra8876_t *dev, uint8_t size) {
     reg_wr(dev, RA8876_CCR0, dev->regCC);
 }
 
-void ra8876_put_cgram_string(ra8876_t *dev, const char *str) {
+void ra8876_put_cgram_string_off(ra8876_t *dev, const char *str, uint8_t offset) {
     ra8876_set_text_mode(dev);
     cmd(dev, RA8876_MRWDP);
     uint8_t buf[64];
     while (*str) {
         size_t n = 0;
         while (*str && n < 64) {
-            buf[n++] = 0x00;
+            buf[n++] = offset;
             buf[n++] = *str++;
         }
         ra8876_write_data_burst(dev, buf, n);
     }
     ra8876_set_graphics_mode(dev);
+}
+
+void ra8876_put_cgram_string(ra8876_t *dev, const char *str) {
+    ra8876_put_cgram_string_off(dev, str, 0);
 }
