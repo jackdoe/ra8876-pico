@@ -435,6 +435,8 @@ void ra8876_select_internal_font(ra8876_t *dev, uint8_t size, uint8_t encoding) 
         case RA8876_FONT_32: dev->char_width = 16; dev->char_height = 32; break;
         default: dev->char_width = 8; dev->char_height = 16; break;
     }
+    dev->cols = dev->width / dev->char_width;
+    dev->rows = dev->height / dev->char_height;
     dev->regCC = ((size & 0x03) << 4) | (encoding & 0x03);
     reg_wr(dev, RA8876_CCR0, dev->regCC);
     reg_wr(dev, RA8876_CCR1, dev->regCD);
@@ -1040,6 +1042,8 @@ void ra8876_select_cgram_font(ra8876_t *dev, uint8_t size) {
         case RA8876_FONT_32: dev->char_width = 16; dev->char_height = 32; break;
         default: dev->char_width = 8; dev->char_height = 16; break;
     }
+    dev->cols = dev->width / dev->char_width;
+    dev->rows = dev->height / dev->char_height;
     reg_wr32(dev, RA8876_CGRAM_STR, cgram_addr(dev));
     dev->regCC = 0x80 | ((size & 0x03) << 4);
     reg_wr(dev, RA8876_CCR0, dev->regCC);
