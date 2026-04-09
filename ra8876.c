@@ -271,7 +271,7 @@ void ra8876_wake_standby(ra8876_t *dev) {
     reg_wr(dev, RA8876_PMU, 0x01);
     while ((ra8876_read_status(dev) & 0x02) != 0);
     init_pwm(dev);
-    ra8876_set_backlight(dev, 255);
+    ra8876_set_backlight(dev, 128);
 }
 
 bool ra8876_init(ra8876_t *dev, uint16_t width, uint16_t height) {
@@ -327,7 +327,7 @@ bool ra8876_init(ra8876_t *dev, uint16_t width, uint16_t height) {
     ra8876_display_on(dev);
     ra8876_vsync_init(dev);
     init_pwm(dev);
-    ra8876_set_backlight(dev, 255);
+    ra8876_set_backlight(dev, 128);
     ra8876_select_internal_font(dev, RA8876_FONT_16, RA8876_ENC_8859_1);
     ra8876_set_text_colors(dev, RA8876_WHITE, RA8876_BLACK);
     return true;

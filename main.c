@@ -89,7 +89,7 @@ void demo2_power(void) {
     ra8876_print(&display, 300, 30, RA8876_WHITE, "Power Management Demo");
 
     ra8876_print(&display, 50, 80, RA8876_GREEN, "Brightness ramp down...");
-    for (int b = 255; b >= 0; b -= 5) {
+    for (int b = 128; b >= 0; b -= 5) {
         ra8876_set_backlight(&display, b);
         sleep_ms(20);
     }
@@ -97,11 +97,11 @@ void demo2_power(void) {
     sleep_ms(500);
 
     ra8876_print(&display, 50, 110, RA8876_GREEN, "Brightness ramp up...");
-    for (int b = 0; b <= 255; b += 5) {
+    for (int b = 0; b <= 128; b += 5) {
         ra8876_set_backlight(&display, b);
         sleep_ms(20);
     }
-    ra8876_set_backlight(&display, 255);
+    ra8876_set_backlight(&display, 128);
     sleep_ms(1000);
 
     ra8876_print(&display, 50, 160, RA8876_YELLOW, "Display OFF (chip still running)...");
